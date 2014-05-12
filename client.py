@@ -25,6 +25,7 @@ class Client:
         self.server.received_bytes = self.number_queue.put
         self.last_executed_number = -1
         self.executed = IDSet()
+        self.proposal_ids = IDGenerator()
         self.last_get_request = -1
 
     def send_to_server(self, bytes):
@@ -32,7 +33,7 @@ class Client:
 
     def propose_to_server(self, message_bytes, id = None):
         if id is None:
-            id = self.executed.get_id()
+            id = self.proposal_ids.get_id()
         self.pending_proposals.append((time.time(), id, message_bytes))
         self.send_to_server(COMMANDS['propose_element'] + id + message_bytes)
 
@@ -76,7 +77,7 @@ class Client:
             number = self.last_executed_number + 1
             bytes = self.server.values[number]
             id = bytes[:ID_LENGTH]
-            if self.executed.can_execute(id):
+            if id not in self.executed:
                 message_bytes = bytes[ID_LENGTH:]
                 self.execute_command(message_bytes, number)
                 self.executed.add(id)
