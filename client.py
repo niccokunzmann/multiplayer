@@ -7,6 +7,34 @@ import queue
 
 from id import *
 
+class Proposal:
+    def __init__(self, message_bytes, id, client):
+        self.__message_bytes = message_bytes
+        self.__id = id
+        self.__sent = False
+        self.__client = client
+
+    @property
+    def id(self):
+        return self.__id
+
+    @property
+    def bytes(self):
+        return self.__message_bytes
+
+    @property
+    def is_sent(self):
+        return self.__sent
+
+    def send(self):
+        if not self.__sent:
+            self.__client._propose_to_server(self.__message_bytes, self.id)
+            self.__sent = True
+        return self
+
+    def __del__(self):
+        self.send()
+
 
 class Client:
 
@@ -31,27 +59,35 @@ class Client:
     def send_to_server(self, bytes):
         self.socket.sendto(bytes,  self.server_address)
 
-    def propose_to_server(self, message_bytes, id = None):
+    def create_proposal(self, message_bytes, id = None):
         if id is None:
             id = self.proposal_ids.get_id()
+        return Proposal(message_bytes, id, self)
+
+    def propose_to_server(self, message_bytes, id = None):
+        return self.create_proposal(message_bytes, id).send()
+        
+    def _propose_to_server(self, message_bytes, id):
         self.pending_proposals.append((time.time(), id, message_bytes))
         self.send_to_server(COMMANDS['propose_element'] + id + message_bytes)
+        return id
 
     def schedule(self):
-        self.server.handle_request()
+        self.server.handle_pending_requests()
         self.retransmit_packets()
         try:
             number = self.number_queue.get_nowait()
         except queue.Empty:
             return
-        bytes = self.server.values[number]
-        id = bytes[:ID_LENGTH]
-        message_bytes = bytes[ID_LENGTH:]
-        for i, pending_proposal in enumerate(self.pending_proposals):
-            if pending_proposal[1] == id:
-                sending_time = self.pending_proposals.pop(i)[0]
-                self.ping_statistics.add(time.time() - sending_time)
-                break
+        if number in self.server.values: # possible - race condition
+            bytes = self.server.values[number]
+            id = bytes[:ID_LENGTH]
+            message_bytes = bytes[ID_LENGTH:]
+            for i, pending_proposal in enumerate(self.pending_proposals):
+                if pending_proposal[1] == id:
+                    sending_time = self.pending_proposals.pop(i)[0]
+                    self.ping_statistics.add(time.time() - sending_time)
+                    break
         self.execute_commands()
 
     def ping(self):
@@ -79,26 +115,32 @@ class Client:
             id = bytes[:ID_LENGTH]
             if id not in self.executed:
                 message_bytes = bytes[ID_LENGTH:]
-                self.execute_command(message_bytes, number)
+                self.execute_command(message_bytes, id, number)
                 self.executed.add(id)
             self.last_executed_number += 1
         for key in list(self.server.values.keys()):
             if key <= self.last_executed_number:
                 self.server.values.pop(key)
 
-    def execute_command(self, bytes, id):
-        print('execute_command:', bytes, id)
+    def execute_command(self, bytes, id, transaction_number):
+        print('execute_command:', bytes, id, transaction_number)
 
     def close(self):
         self.server.server_close()
 
-if __name__ == '__main__':
+def test_get_clients():
     from server import main as server_main
     from threading import Thread
     t = Thread(target = server_main)
     t.deamon = True
     t.start()
     c = Client(('localhost', 6028))
+    c2 = Client(('localhost', 6028))
+    return c, c2
+
+
+if __name__ == '__main__':
+    c, c2 = test_get_clients()
 
     c.propose_to_server(b'NANANANANANANANANANANANANANANNANNANNANANANANANANA')
 
@@ -110,7 +152,6 @@ if __name__ == '__main__':
         
     print('scheduled')
 
-    c2 = Client(('localhost', 6028))
     then = time.time()
     while time.time() - 1 < then:
         c2.schedule()

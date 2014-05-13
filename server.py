@@ -34,6 +34,17 @@ class Server(UDPServer):
         UDPServer.__init__(self, server_address, RequestHandlerClass)
         self.values = {}
         self.clients = set()
+        def handle_timeout():
+            self.__handle_timeout()
+            self._has_pending_requests = False
+        self.__handle_timeout = self.handle_timeout
+        self.handle_timeout = handle_timeout
+
+    def handle_pending_requests(self):
+        self._has_pending_requests = True
+        while self._has_pending_requests:
+            self.handle_request()
+        
 
 class CommandRequestHandler(DatagramRequestHandler):
     
