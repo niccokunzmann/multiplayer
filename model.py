@@ -8,7 +8,7 @@ import sys
 
 class Executor:
 
-    futures = WeakValueDictionary()
+    futures = {}
 
     def __init__(self, client):
         self.client = client
@@ -16,30 +16,33 @@ class Executor:
         self.client.execute_command = self._execute_command
 
     def _execute_command(self, bytes, id, transaction_number):
-        command = self.serializer.loads(bytes)
-        function = command[0]
-        if len(command) >= 2:
-            args = command[1]
-        else:
-            args = ()
-        if len(command) >= 3:
-            kw = command[2]
-        else:
-            kw = {}
-        future = self._get_future(id)
-        if future is None:
-            function(id, transaction_number, *args, **kw)
-        else:
-            try:
-                result = function(id, transaction_number,  *args, **kw)
-            except:
-                ty, err, tb = sys.exc_info()
-                if hasattr(err, 'with_traceback'):
-                    future.set_exception(err.with_traceback(tb))
-                else:
-                    future.set_exception(err)
+        try:
+            command = self.serializer.loads(bytes)
+            function = command[0]
+            if len(command) >= 2:
+                args = command[1]
             else:
-                future.set_result(result)
+                args = ()
+            if len(command) >= 3:
+                kw = command[2]
+            else:
+                kw = {}
+            future = self._get_future(id)
+            if future is None:
+                function(id, transaction_number, *args, **kw)
+            else:
+                try:
+                    result = function(id, transaction_number,  *args, **kw)
+                except:
+                    ty, err, tb = sys.exc_info()
+                    if hasattr(err, 'with_traceback'):
+                        future.set_exception(err.with_traceback(tb))
+                    else:
+                        future.set_exception(err)
+                else:
+                    future.set_result(result)
+        finally:
+            self._del_future(id)
 
     def get_command(self, function, args = (), kw = {}):
         if kw:
@@ -68,6 +71,10 @@ class Executor:
 
     def _get_future(self, id):
         return self.futures.get(id)
+
+    def _del_future(self, id):
+        if id in self.futures:
+            del self.futures[id]
 
 if __name__ == '__main__':
     from client import test_get_clients
