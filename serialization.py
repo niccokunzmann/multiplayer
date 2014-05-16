@@ -2,6 +2,8 @@ from id import IDGenerator
 import pickle
 import io
 
+class RegistrationError(ValueError):
+    pass
 
 class Serializer:
 
@@ -21,12 +23,12 @@ class Serializer:
 
     def _check_id(self, id, obj):
         if id not in self.id_to_object:
-            raise ValueError("{} not registered under {}. The id is not in use.".format(obj, rer(id)), id)
+            raise RegistrationError("{} not registered under {}. The id is not in use.".format(obj, rer(id)), id)
         if self.id_to_object[id] is not obj:
             message = "get_unique_identifier() must return the id of the registered object. {} has not been registered under id {}.".format(obj, repr(id))
             if id in self.id_to_object:
                 message += "But {} is registered under id {}.".format(self.id_to_object[id], repr(id))
-            raise ValueError(message, id)
+            raise RegistrationError(message, id)
 
 
     def _persistent_id(self, obj):
@@ -75,7 +77,7 @@ class Serializer:
         return p.load()
 
 
-__all__ = ['Serializer']
+__all__ = ['Serializer', 'RegistrationError']
 
 def test(obj):
     s = Serializer()

@@ -1,16 +1,16 @@
 
-from serialization import Serializer
+from serialization import Serializer, RegistrationError
 import collections
-from concurrent.futures import Future
+import concurrent.futures
 from weakref import WeakValueDictionary
 import sys
 import traceback
 
 class Future(concurrent.futures.Future):
 
-    def set_to_function_call(self, func, args, kw):
+    def set_to_function_call(self, function, args, kw):
         try:
-            result = function(self,  *args, **kw)
+            result = function(*args, **kw)
         except:
             self.set_to_exception()
         else:
@@ -63,7 +63,7 @@ class PointInTranstactionChain:
                 except:
                     self.print_exc()
             else:
-                future.set_to_function_call(self.function, self.args, self.kw)
+                future.set_to_function_call(self.function, (self,) + self.args, self.kw)
         finally:
             self.executor.dependency_fulfilled(self.id)
 
@@ -119,7 +119,7 @@ class Executor:
         message = self.serializer.dumps(command)
         return self.client.create_proposal(message)
 
-    def send_future(self, function, args = (), kw = {}, dependencies = ()):
+    def future_call(self, function, args = (), kw = {}, dependencies = ()):
         command = self.get_command(function, args, kw)
         id = command.id
         future = self._create_future(id)
@@ -152,7 +152,7 @@ class Executor:
                 if waitingTransactionPoint.can_execute():
                     self.ready_transactionPoints.append(waitingTransactionPoint)
 
-__all__ = ['Executor']
+__all__ = ['Executor', 'RegistrationError']
 
 if __name__ == '__main__':
     import time
@@ -165,7 +165,7 @@ if __name__ == '__main__':
         print('test_print', args)
         return args
 
-    fut = e1.send_future(test_print, args = ('arguments', ))
+    fut = e1.future_call(test_print, args = ('arguments', ))
     while not fut.done():
         c2.schedule()
         c1.schedule()

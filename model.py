@@ -1,78 +1,39 @@
 
 from Executor import *
 
+        
+    
+def p(transaction, distributor, obj, accessFactory):
+    distributor._register(obj, transaction.id)
+
+
 class Distributor:
 
     ExecutorClass = Executor
 
     def __init__(self, client):
-        self.client = client
-        self.executor = self.ExecutorClass(client)
-        self.register = self.executor.register
-        self.new_future = self.executor.new_future
+        self._client = client
+        self._executor = self.ExecutorClass(client)
+        self._register = self._executor.register
+        self._register(self, self.__class__)
+
+    def local(self, obj, name):
         
 
-def t()
+    def proxy(self, obj, accessFactory):
+        return self._executor.future_call(self._proxy, (self, obj, accessFactory, self.proxyClass))
 
-class FutureProxy:
+    def list(self, from_list = []):
+        return self.proxy(from_list, listAccess)
 
-    class ProxyAttribute:
-        def __init__(self, name, proxiedMethod):
-            self.name = name
-            self.proxiedMethod = proxiedMethod
-
-        def __get__(self, dist, cls):
-            return proxiedMethod.__get__(dist, cls)
-
-        def __set__(self, obj, cls):
-            raise NotImplementedError('Can not set attribute {} of {}'.format(self.name, cls))
-            # TODO
-
-        def __del__(self, obj, cls):
-            raise NotImplementedError('Can not delete attribute {} of {}'.format(self.name, cls))
-
-    def __init__(self, obj, distributor, read, write, created_id):
-        self._obj = obj
-        self._read = read
-        self._write = write
-        self._distributor = distributor
-        self._last_write_transaction_id = created_id
-        self._last_read_transaction_id = created_id
-
-    def _is_read_method(self, name):
-        return name in self._read
-
-    def _is_write_method(self, name):
-        return name in self._write
-
-    def __getattr__(self, name):
-        self._create_proxy_attribute(name)
-        return getattr(self, name)
-
-    def _create_proxy_attribute(self, name):
-        setattr(self.__class__, name, self.ProxyAttribute(name, self.get_proxy_method(name)))
-
-    @staticmethod
-    def get_proxy_method(name):
-        def proxy_method(self, *args, **kw):
-            if self._is_write_method(name):
-                dependencies = (self._last_write_transaction_id,
-                                self._last_read_transaction_id)
-            elif self._is_read_method(name):
-                dependencies = (self._last_write_transaction_id,)
-            else:
-                future = self._distributor.new_future()
-                future.set_to_method_call(self._obj, name, args, kw)
-                return future
-            return self._distributor.future_call(self.transaction, (self, name, args, kw))
-            
-        proxy_method.__name__ = name
-        return proxy_method
-
-    transaction = staticmethod(t)
+    _proxy = staticmethod(p)
     
-        
-    
+
+list_read = set(['get'])
+list_write = set(['append'])
+
+def listAccess():
+    return list_read, list_write
 
 
 
