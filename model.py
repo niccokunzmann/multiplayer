@@ -19,10 +19,11 @@ class Distributor:
         self._register(self, self.__class__)
 
     def proxy(self, obj, accessFactory):
+        # TODO: future of self?
         return self._executor.future_call(self._proxy, (self, obj, accessFactory, self.ProxyClass))
 
     def list(self, from_list = []):
-        return self.proxy(from_list, listAccess)
+        return self.proxy(from_list[:], listAccess)
 
     _proxy = staticmethod(p)
     
@@ -32,9 +33,6 @@ list_write = set(['append'])
 
 def listAccess():
     return list_read, list_write
-
-
-
 
 if __name__ == '__main__':
     from client import test_get_clients
@@ -59,13 +57,14 @@ if __name__ == '__main__':
     thread.deamon = True
     thread.start()
 
-    f = l.count(1)
-    print('f.result()', f.result())
-    print('f.exception()', f.exception())
+    future = l.count(1)
+    print('f.exception()', future.exception())
+    print('f.result()', future.result())
     l.append(3)
     l.append(2)
     l.append(l)
     for i in (1, 2, 3):
         print('l.count({})'.format(i), l.count(i).result())
     print('l.count(l)', l.count(l).result())
+    print(l.not_an_attribute())
 
