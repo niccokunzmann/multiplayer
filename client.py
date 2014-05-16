@@ -122,6 +122,9 @@ class Client:
             if key <= self.last_executed_number:
                 self.server.values.pop(key)
 
+    def was_executed(self, id):
+        return id in self.executed
+
     def execute_command(self, bytes, id, transaction_number):
         print('execute_command:', bytes, id, transaction_number)
 

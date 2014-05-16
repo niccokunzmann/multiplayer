@@ -66,11 +66,9 @@ class Serializer:
         p.persistent_id = self._persistent_id
         p.dump(obj)
         bytes = file.getvalue()
-        print('dumps:', bytes)
         return bytes
 
     def loads(self, bytes):
-        print('loads:', bytes)
         file = io.BytesIO(bytes)
         p = pickle.Unpickler(file)
         p.persistent_load = self._persistent_load
