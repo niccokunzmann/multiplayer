@@ -1,161 +1,80 @@
 
-from serialization import Serializer
-import collections
-from concurrent.futures import Future
-from weakref import WeakValueDictionary
-import sys
-import traceback
+from Executor import *
 
-class PointInTranstactionChain:
+class Distributor:
 
-    def __init__(self, executor, id, transaction_number, dependencies,
-                 future, function, args, kw):
-        self.executor = executor
-        self.id = id
-        self.transaction_number = transaction_number
-        self.dependencies = dependencies
-        assert not self.executor.was_executed(id)
-        self.future = future
-        self.function = function
-        self.args = args
-        self.kw = kw
-        self.unfulfilled_dependencies = set()
-        self._append_to_dependencies()
-
-    def __str__(self):
-        return '<{self.__class__.__name__} at {self.transaction_number} id: {self.id}>'.format(
-            self = self)
-
-    __repr__ = __str__
-
-    def execute(self):
-        assert self.can_execute()
-        try:
-            future = self.future
-            if future is None:
-                try:
-                    self.function(self, *self.args, **self.kw)
-                except:
-                    self.print_exc()
-            else:
-                try:
-                    result = self.function(self,  *self.args, **self.kw)
-                except:
-                    ty, err, tb = sys.exc_info()
-                    if hasattr(err, 'with_traceback'):
-                        future.set_exception(err.with_traceback(tb))
-                    else:
-                        future.set_exception(err)
-                else:
-                    future.set_result(result)
-        finally:
-            self.executor.dependency_fulfilled(self.id)
-
-
-    def print_exc(self):
-        traceback.print_exc()
-
-    def can_execute(self):
-        return not self.unfulfilled_dependencies
-
-    def dependency_fulfilled(self, id):
-        self.unfulfilled_dependencies.remove(id)
-
-    def _append_to_dependencies(self):
-        for id in self.dependencies:
-            if not self.executor.was_executed(id):
-                self.executor.add_dependency(id, self)
-                self.unfulfilled_dependencies.add(id)
-        
-
-
-class Executor:
-
-    futures = {}
-    dependencies = collections.defaultdict(list)
-    PointInTranstactionChainClass = PointInTranstactionChain
+    ExecutorClass = Executor
 
     def __init__(self, client):
         self.client = client
-        self.serializer = Serializer()
-        self.client.execute_command = self._execute_command
-        self.ready_transactionPoints = []
+        self.executor = self.ExecutorClass(client)
+        self.register = self.executor.register
+        self.new_future = self.executor.new_future
+        
 
-    def _execute_command(self, bytes, id, transaction_number):
-        try:
-            command = self.serializer.loads(bytes)
-            function, dependencies, args, kw = command
-            future = self._get_future(id)
-            transactionPoint = self.PointInTranstactionChainClass(
-                self, id, transaction_number, dependencies, future, function,
-                args, kw)
-            if transactionPoint.can_execute():
-                transactionPoint.execute()
-            while self.ready_transactionPoints:
-                transactionPoint = self.ready_transactionPoints.pop()
-                transactionPoint.execute()
-        finally:
-            self._del_future_reference(id)
+def t()
 
-    def get_command(self, function, args = (), kw = {}, dependencies = ()):
-        command = (function, dependencies, args, kw)
-        message = self.serializer.dumps(command)
-        return self.client.create_proposal(message)
+class FutureProxy:
 
-    def send_future(self, function, args = (), kw = {}, dependencies = ()):
-        command = self.get_command(function, args, kw)
-        id = command.id
-        future = self._create_future(id)
-        command.send()
-        return future
+    class ProxyAttribute:
+        def __init__(self, name, proxiedMethod):
+            self.name = name
+            self.proxiedMethod = proxiedMethod
 
-    def was_executed(self, id):
-        return self.client.was_executed(id)
+        def __get__(self, dist, cls):
+            return proxiedMethod.__get__(dist, cls)
 
-    def _create_future(self, id):
-        future = Future()
-        self.futures[id] = future
-        future.id = id
-        return future
+        def __set__(self, obj, cls):
+            raise NotImplementedError('Can not set attribute {} of {}'.format(self.name, cls))
+            # TODO
 
-    def _get_future(self, id):
-        return self.futures.get(id)
+        def __del__(self, obj, cls):
+            raise NotImplementedError('Can not delete attribute {} of {}'.format(self.name, cls))
 
-    def _del_future_reference(self, id):
-        if id in self.futures:
-            del self.futures[id]
+    def __init__(self, obj, distributor, read, write, created_id):
+        self._obj = obj
+        self._read = read
+        self._write = write
+        self._distributor = distributor
+        self._last_write_transaction_id = created_id
+        self._last_read_transaction_id = created_id
 
-    def add_dependency(self, id, pointInTransactionChain):
-        self.dependencies[id].append(pointInTransactionChain)
+    def _is_read_method(self, name):
+        return name in self._read
 
-    def dependency_fulfilled(self, id):
-        if id in self.dependencies:
-            for waitingTransactionPoint in self.dependencies.pop(id):
-                waitingTransactionPoint.dependency_fulfilled(id)
-                if waitingTransactionPoint.can_execute():
-                    self.ready_transactionPoints.append(waitingTransactionPoint)
+    def _is_write_method(self, name):
+        return name in self._write
 
-if __name__ == '__main__':
-    import time
-    from client import test_get_clients
-    c1, c2 = test_get_clients()
-    e1 = Executor(c1)
-    e2 = Executor(c2)
+    def __getattr__(self, name):
+        self._create_proxy_attribute(name)
+        return getattr(self, name)
 
-    def test_print(*args):
-        print('test_print', args)
-        return args
+    def _create_proxy_attribute(self, name):
+        setattr(self.__class__, name, self.ProxyAttribute(name, self.get_proxy_method(name)))
 
-    fut = e1.send_future(test_print, args = ('arguments', ))
-    while not fut.done():
-        c2.schedule()
-        c1.schedule()
-    time.sleep(0.1)
-    c2.schedule()
-    c1.schedule()
+    @staticmethod
+    def get_proxy_method(name):
+        def proxy_method(self, *args, **kw):
+            if self._is_write_method(name):
+                dependencies = (self._last_write_transaction_id,
+                                self._last_read_transaction_id)
+            elif self._is_read_method(name):
+                dependencies = (self._last_write_transaction_id,)
+            else:
+                future = self._distributor.new_future()
+                future.set_to_method_call(self._obj, name, args, kw)
+                return future
+            return self._distributor.future_call(self.transaction, (self, name, args, kw))
+            
+        proxy_method.__name__ = name
+        return proxy_method
 
-    print('result:', fut.result())
+    transaction = staticmethod(t)
     
+        
+    
+
+
 
 ##class Model:
 ##

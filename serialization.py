@@ -40,11 +40,11 @@ class Serializer:
         """register an object under a new id so that it can be serialized.
         if id is None: a new id is created
         Returns the id of the object."""
-        _id = self._get_id(obj)
+        _id = self.get_id(obj)
         if id is None:
             if _id is not None and not force:
                 raise ValueError("Usually, you do not need to register {} with the id {} under a new random id. Use force = True if you really want to.".format(obj, repr(id)))
-            id = sef.new_id()
+            id = self.new_id()
                 
         def get_unique_identifier():
             """returns a unique identifier of the object.
@@ -73,3 +73,22 @@ class Serializer:
         p = pickle.Unpickler(file)
         p.persistent_load = self._persistent_load
         return p.load()
+
+
+__all__ = ['Serializer']
+
+def test(obj):
+    s = Serializer()
+    id = s.register(obj)
+    b = s.dumps(obj)
+    assert id in b
+    obj2 = s.loads(b)
+    assert obj2 is obj
+    
+
+if __name__ == '__main__':
+
+#    test(object()) # TODO
+#    test('hallo') # TODO
+    class X:pass
+    test(X())

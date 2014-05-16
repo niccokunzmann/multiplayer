@@ -55,6 +55,7 @@ class Client:
         self.executed = IDSet()
         self.proposal_ids = IDGenerator()
         self.last_get_request = -1
+        self.executor = None
 
     def send_to_server(self, bytes):
         self.socket.sendto(bytes,  self.server_address)
@@ -125,8 +126,15 @@ class Client:
     def was_executed(self, id):
         return id in self.executed
 
+    def add_executor(self, executor):
+        assert self.executor is None, 'there is only one executor supported'
+        self.executor = executor
+
     def execute_command(self, bytes, id, transaction_number):
-        print('execute_command:', bytes, id, transaction_number)
+        if self.executor:
+            self.executor.execute_command(bytes, id, transaction_number)
+        else:
+            print('execute_command:', bytes, id, transaction_number)
 
     def close(self):
         self.server.server_close()

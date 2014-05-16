@@ -6,6 +6,31 @@ from weakref import WeakValueDictionary
 import sys
 import traceback
 
+class Future(concurrent.futures.Future):
+
+    def set_to_function_call(self, func, args, kw):
+        try:
+            result = function(self,  *args, **kw)
+        except:
+            self.set_to_exception()
+        else:
+            self.set_result(result)
+
+    def set_to_exception(self):
+        ty, err, tb = sys.exc_info()
+        if hasattr(err, 'with_traceback'):
+            self.set_exception(err.with_traceback(tb))
+        else:
+            self.set_exception(err)
+
+    def set_to_method_call(self, obj, name, args, kw):
+        try:
+            set_to_function_call(getattr(obj, name), args, kw)
+        except:
+            self.set_to_exception()
+
+
+
 class PointInTranstactionChain:
 
     def __init__(self, executor, id, transaction_number, dependencies,
@@ -38,16 +63,7 @@ class PointInTranstactionChain:
                 except:
                     self.print_exc()
             else:
-                try:
-                    result = self.function(self,  *self.args, **self.kw)
-                except:
-                    ty, err, tb = sys.exc_info()
-                    if hasattr(err, 'with_traceback'):
-                        future.set_exception(err.with_traceback(tb))
-                    else:
-                        future.set_exception(err)
-                else:
-                    future.set_result(result)
+                future.set_to_function_call(self.function, self.args, self.kw)
         finally:
             self.executor.dependency_fulfilled(self.id)
 
@@ -66,22 +82,23 @@ class PointInTranstactionChain:
             if not self.executor.was_executed(id):
                 self.executor.add_dependency(id, self)
                 self.unfulfilled_dependencies.add(id)
-        
-
 
 class Executor:
 
-    futures = {}
-    dependencies = collections.defaultdict(list)
     PointInTranstactionChainClass = PointInTranstactionChain
+    new_future = Future
 
     def __init__(self, client):
         self.client = client
         self.serializer = Serializer()
-        self.client.execute_command = self._execute_command
         self.ready_transactionPoints = []
+        self.client.add_executor(self) # register at client
+        self.dependencies = collections.defaultdict(list)
+        self.futures = {}
+        self.register = self.serializer.register
 
-    def _execute_command(self, bytes, id, transaction_number):
+    def execute_command(self, bytes, id, transaction_number):
+        """called by the client"""
         try:
             command = self.serializer.loads(bytes)
             function, dependencies, args, kw = command
@@ -113,7 +130,7 @@ class Executor:
         return self.client.was_executed(id)
 
     def _create_future(self, id):
-        future = Future()
+        future = self.new_future()
         self.futures[id] = future
         future.id = id
         return future
@@ -134,6 +151,8 @@ class Executor:
                 waitingTransactionPoint.dependency_fulfilled(id)
                 if waitingTransactionPoint.can_execute():
                     self.ready_transactionPoints.append(waitingTransactionPoint)
+
+__all__ = ['Executor']
 
 if __name__ == '__main__':
     import time
