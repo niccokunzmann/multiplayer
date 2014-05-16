@@ -1,15 +1,16 @@
+from execution import *
+from FutureProxy import *
 
-from Executor import *
-
-        
-    
-def p(transaction, distributor, obj, accessFactory):
-    distributor._register(obj, transaction.id)
-
+def p(transaction, distributor, obj, accessFactory, proxyClass):
+    read, write = accessFactory()
+    proxy = proxyClass(obj, distributor._executor, read, write, transaction.id)
+    distributor._register(proxy, transaction.id)
+    return proxy
 
 class Distributor:
 
     ExecutorClass = Executor
+    ProxyClass = FutureProxy
 
     def __init__(self, client):
         self._client = client
@@ -17,11 +18,8 @@ class Distributor:
         self._register = self._executor.register
         self._register(self, self.__class__)
 
-    def local(self, obj, name):
-        
-
     def proxy(self, obj, accessFactory):
-        return self._executor.future_call(self._proxy, (self, obj, accessFactory, self.proxyClass))
+        return self._executor.future_call(self._proxy, (self, obj, accessFactory, self.ProxyClass))
 
     def list(self, from_list = []):
         return self.proxy(from_list, listAccess)
@@ -29,7 +27,7 @@ class Distributor:
     _proxy = staticmethod(p)
     
 
-list_read = set(['get'])
+list_read = set(['count'])
 list_write = set(['append'])
 
 def listAccess():
@@ -37,48 +35,37 @@ def listAccess():
 
 
 
-##class Model:
-##
-##    def __init__(self, obj, shared_model):
-##        self.obj = obj
-##        self.shared_model = shared_model
-##
-##    def future_call(self, name, args, kw):
-##        
-##
-##class ModelList(collections.UserList):
-##
-##    # these methods change the state
-##
-##    def __init__(self, initlist = ):
-####    def __setitem__(self, i, item): self.data[i] = item
-####    def __delitem__(self, i): del self.data[i]
-####    def __iadd__(self, other):
-####    def __imul__(self, n):
-##    def append(self, item): self.data.append(item)
-####    def insert(self, i, item): self.data.insert(i, item)
-####    def pop(self, i=-1): return self.data.pop(i)
-####    def remove(self, item): self.data.remove(item)
-####    def clear(self): self.data.clear()
-####    def reverse(self): self.data.reverse()
-####    def sort(self, *args, **kwds): self.data.sort(*args, **kwds)
-####    def extend(self, other):
-##    
-##    # these methods use __class__ to create new objects
-####    def __add__(self, other):
-####        if isinstance(other, UserList):
-####            return self.__class__(self.data + other.data)
-####        elif isinstance(other, type(self.data)):
-####            return self.__class__(self.data + other)
-####        return self.__class__(self.data + list(other))
-####    def __radd__(self, other):
-####        if isinstance(other, UserList):
-####            return self.__class__(other.data + self.data)
-####        elif isinstance(other, type(self.data)):
-####            return self.__class__(other + self.data)
-####        return self.__class__(list(other) + self.data)
-####    def __mul__(self, n):
-####        return self.__class__(self.data*n)
-####    __rmul__ = __mul__
-####    def copy(self): return self.__class__(self)
-##    
+
+if __name__ == '__main__':
+    from client import test_get_clients
+    import time
+    import threading
+    c1, c2 = test_get_clients()
+    d1 = Distributor(c1)
+    d2 = Distributor(c2)
+    l_f = d1.list()
+    while not l_f.done():
+        c1.schedule()
+
+    l = l_f.result()
+
+    def t():
+        while 1:
+            c1.schedule()
+            c2.schedule()
+            time.sleep(0.01)
+
+    thread = threading.Thread(target = t)
+    thread.deamon = True
+    thread.start()
+
+    f = l.count(1)
+    print('f.result()', f.result())
+    print('f.exception()', f.exception())
+    l.append(3)
+    l.append(2)
+    l.append(l)
+    for i in (1, 2, 3):
+        print('l.count({})'.format(i), l.count(i).result())
+    print('l.count(l)', l.count(l).result())
+

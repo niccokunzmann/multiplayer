@@ -6,12 +6,16 @@ from weakref import WeakValueDictionary
 import sys
 import traceback
 
+allow_errors = False
+
 class Future(concurrent.futures.Future):
 
     def set_to_function_call(self, function, args, kw):
         try:
             result = function(*args, **kw)
         except:
+            if not allow_errors:
+                raise
             self.set_to_exception()
         else:
             self.set_result(result)
@@ -25,8 +29,10 @@ class Future(concurrent.futures.Future):
 
     def set_to_method_call(self, obj, name, args, kw):
         try:
-            set_to_function_call(getattr(obj, name), args, kw)
+            self.set_to_function_call(getattr(obj, name), args, kw)
         except:
+            if not allow_errors:
+                raise
             self.set_to_exception()
 
 

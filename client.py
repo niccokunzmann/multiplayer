@@ -149,6 +149,7 @@ def test_get_clients():
     c2 = Client(('localhost', 6028))
     return c, c2
 
+__all__ = ['Client', 'test_get_clients']
 
 if __name__ == '__main__':
     c, c2 = test_get_clients()
