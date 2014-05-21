@@ -103,15 +103,15 @@ class Executor:
         self.futures = {}
         self.register = self.serializer.register
 
-    def execute_command(self, bytes, id, transaction_number):
+    def execute_command(self, transaction):
         """called by the client"""
         try:
-            command = self.serializer.loads(bytes)
+            command = self.serializer.load(transaction.get_reader())
             function, dependencies, args, kw = command
-            future = self._get_future(id)
+            future = self._get_future(transaction.id)
             transactionPoint = self.PointInTranstactionChainClass(
-                self, id, transaction_number, dependencies, future, function,
-                args, kw)
+                self, transaction.id, transaction.number, dependencies,
+                future, function, args, kw)
             if transactionPoint.can_execute():
                 transactionPoint.execute()
             while self.ready_transactionPoints:

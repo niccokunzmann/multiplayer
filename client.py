@@ -4,6 +4,7 @@ import time
 
 from statistics import ECDF
 import queue
+import io
 
 from id import *
 
@@ -35,11 +36,30 @@ class Proposal:
     def __del__(self):
         self.send()
 
+class Transaction:
+
+    def __init__(self, number, bytes):
+        self.number = number
+        self._bytes = bytes
+
+    @property
+    def id(self):
+        return self._bytes[:ID_LENGTH]
+
+    @property
+    def bytes(self):
+        return self._bytes[ID_LENGTH:]
+
+    def get_reader(self):
+        file = io.BytesIO(self._bytes)
+        file.seek(ID_LENGTH)
+        return file
 
 class Client:
 
     # 0.95 = packet as lost with 95% probability
     packet_was_lost_probability = 0.95
+    ping_probability = 0.5
 
     def __init__(self, server_address, client_address = ('', 0)):
         self.server = Server(client_address, ClientRequestHandler)
@@ -50,12 +70,12 @@ class Client:
         self.ping_statistics = ECDF()
         self.ping_statistics.add(0.01)
         self.number_queue = queue.Queue()
-        self.server.received_bytes = self.number_queue.put
         self.last_executed_number = -1
         self.executed = IDSet()
         self.proposal_ids = IDGenerator()
         self.last_get_request = -1
         self.executor = None
+        self.transactions = {} # number : transaction
 
     def send_to_server(self, bytes):
         self.socket.sendto(bytes,  self.server_address)
@@ -75,24 +95,26 @@ class Client:
 
     def schedule(self):
         self.server.handle_pending_requests()
+        self.copy_new_transactions()
         self.retransmit_packets()
-        try:
-            number = self.number_queue.get_nowait()
-        except queue.Empty:
-            return
-        if number in self.server.values: # possible - race condition
-            bytes = self.server.values[number]
-            id = bytes[:ID_LENGTH]
-            message_bytes = bytes[ID_LENGTH:]
-            for i, pending_proposal in enumerate(self.pending_proposals):
-                if pending_proposal[1] == id:
-                    sending_time = self.pending_proposals.pop(i)[0]
-                    self.ping_statistics.add(time.time() - sending_time)
-                    break
         self.execute_commands()
 
+    def copy_new_transactions(self):
+        while self.server.values:
+            transaction_number, bytes = self.server.values.popitem()
+            transaction = Transaction(transaction_number, bytes)
+            self.transactions[transaction_number] = transaction
+            self._remove_pending_proposal(transaction.id)
+
+    def _remove_pending_proposal(self, id):
+        for i, pending_proposal in enumerate(self.pending_proposals):
+            if pending_proposal[1] == id:
+                sending_time = self.pending_proposals.pop(i)[0]
+                self.ping_statistics.add(time.time() - sending_time)
+                break
+
     def ping(self):
-        return self.ping_statistics.inverse(self.packet_was_lost_probability)
+        return self.ping_statistics.inverse(self.ping_probability)
 
     def retransmit_packets(self):
         # retransmit proposals
@@ -110,18 +132,17 @@ class Client:
         self.send_to_server(COMMANDS['get_element'] + number2bytes(self.last_executed_number + 1))
 
     def execute_commands(self):
-        while self.last_executed_number + 1 in self.server.values:
+        while self.last_executed_number + 1 in self.transactions:
             number = self.last_executed_number + 1
-            bytes = self.server.values[number]
-            id = bytes[:ID_LENGTH]
+            transaction = self.transactions[number]
+            id = transaction.id
             if id not in self.executed:
-                message_bytes = bytes[ID_LENGTH:]
-                self.execute_command(message_bytes, id, number)
+                self.execute_command(transaction)
                 self.executed.add(id)
             self.last_executed_number += 1
-        for key in list(self.server.values.keys()):
+        for key in list(self.transactions.keys()):
             if key <= self.last_executed_number:
-                self.server.values.pop(key)
+                self.transactions.pop(key)
 
     def was_executed(self, id):
         return id in self.executed
@@ -130,11 +151,11 @@ class Client:
         assert self.executor is None, 'there is only one executor supported'
         self.executor = executor
 
-    def execute_command(self, bytes, id, transaction_number):
+    def execute_command(self, transaction):
         if self.executor:
-            self.executor.execute_command(bytes, id, transaction_number)
+            self.executor.execute_command(transaction)
         else:
-            print('execute_command:', bytes, id, transaction_number)
+            print('execute_command:', transaction.id, transaction.number)
 
     def close(self):
         self.server.server_close()

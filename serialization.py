@@ -64,14 +64,20 @@ class Serializer:
 
     def dumps(self, obj):
         file = io.BytesIO()
-        p = pickle.Pickler(file)
-        p.persistent_id = self._persistent_id
-        p.dump(obj)
+        self.dump(obj, file)
         bytes = file.getvalue()
         return bytes
 
+    def dump(self, obj, file):
+        p = pickle.Pickler(file)
+        p.persistent_id = self._persistent_id
+        p.dump(obj)
+
     def loads(self, bytes):
         file = io.BytesIO(bytes)
+        return self.load(file)
+
+    def load(self, file):
         p = pickle.Unpickler(file)
         p.persistent_load = self._persistent_load
         return p.load()

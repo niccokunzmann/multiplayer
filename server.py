@@ -87,9 +87,6 @@ class CommandRequestHandler(DatagramRequestHandler):
     def clients(self):
         return self.server.clients
 
-    def received_bytes(self, bytes):
-        pass
-
 class ServerRequestHandler(CommandRequestHandler):
 
     def cmd_propose_element(self):
@@ -123,7 +120,6 @@ class ClientRequestHandler(CommandRequestHandler):
         number = self.read_number()
         bytes = self.read_bytes()
         self.server.values[number] = bytes
-        self.server.received_bytes(number)
 
 
 def main(HandlerClass = ServerRequestHandler,

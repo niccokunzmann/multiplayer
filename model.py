@@ -45,7 +45,7 @@ if __name__ == '__main__':
     while not l_f.done():
         c1.schedule()
 
-    l = l_f.result()
+    li = l_f.result()
 
     def t():
         while 1:
@@ -57,14 +57,14 @@ if __name__ == '__main__':
     thread.deamon = True
     thread.start()
 
-    future = l.count(1)
+    future = li.count(1)
     print('f.exception()', future.exception())
     print('f.result()', future.result())
-    l.append(3)
-    l.append(2)
-    l.append(l)
+    li.append(3)
+    li.append(2)
+    li.append(li)
     for i in (1, 2, 3):
-        print('l.count({})'.format(i), l.count(i).result())
-    print('l.count(l)', l.count(l).result())
-    print(l.not_an_attribute())
+        print('li.count({})'.format(i), li.count(i).result())
+    print('li.count(li)', li.count(li).result())
+##    print(l.not_an_attribute())
 
