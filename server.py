@@ -7,15 +7,22 @@
 from socketserver import UDPServer, DatagramRequestHandler
 import struct
 from io import BytesIO
+import time
+import socket
+import json
 
 COMMANDS = {b'a' : 'add_client',
             b'r' : 'remove_client',
             b'p' : 'propose_element',
             b'u' : 'update_element',
-            b'g' : 'get_element'}
+            b'g' : 'get_element',
+            b'i' : 'is_there_a_server',
+            b't' : 'there_is_a_server'}
 
 for key, command_name in list(COMMANDS.items()):
     COMMANDS[command_name] = key
+
+SERVER_PORT = 6028
 
 def number2bytes(number):
     return struct.pack('>l', number)
@@ -29,8 +36,10 @@ class Server(UDPServer):
     # max_packet_size according to
     # http://stackoverflow.com/questions/1098897/what-is-the-largest-safe-udp-packet-size-on-the-internet
     max_packet_size = 65507
+    information = {}
 
-    def __init__(self,  server_address, RequestHandlerClass):
+    def __init__(self,  server_address, RequestHandlerClass, address_family = socket.AF_INET):
+        self.address_family = address_family
         UDPServer.__init__(self, server_address, RequestHandlerClass)
         self.values = {}
         self.clients = set()
@@ -44,6 +53,9 @@ class Server(UDPServer):
         self._has_pending_requests = True
         while self._has_pending_requests:
             self.handle_request()
+
+    def server_discovered(self, address, bytes):
+        pass
         
 
 class CommandRequestHandler(DatagramRequestHandler):
@@ -112,6 +124,11 @@ class ServerRequestHandler(CommandRequestHandler):
         self.write_command('update_element')
         self.write_number(number)
         self.write_bytes(value)
+
+    def cmd_is_there_a_server(self):
+        self.write_command('there_is_a_server')
+        self.write_bytes(json.dumps(self.server.information).encode('UTF-8'))
+        self.reply()
         
 class ClientRequestHandler(CommandRequestHandler):
     
@@ -121,9 +138,14 @@ class ClientRequestHandler(CommandRequestHandler):
         bytes = self.read_bytes()
         self.server.values[number] = bytes
 
+class DiscoveryRequestHandler(CommandRequestHandler):
+
+    def cmd_there_is_a_server(self):
+        information = json.loads(self.read_bytes().decode('UTF-8'))
+        self.server.server_discovered(self.client_address, information)
 
 def main(HandlerClass = ServerRequestHandler,
-         ServerClass = Server, port=6028):
+         ServerClass = Server, port=SERVER_PORT):
     import sys
     
     server_address = ('', port)

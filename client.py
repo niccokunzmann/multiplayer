@@ -1,4 +1,5 @@
 from server import Server, ClientRequestHandler, COMMANDS, number2bytes
+from endpoint import *
 from threading import Thread
 import time
 
@@ -55,17 +56,15 @@ class Transaction:
         file.seek(ID_LENGTH)
         return file
 
+
 class Client:
 
     # 0.95 = packet as lost with 95% probability
     packet_was_lost_probability = 0.95
     ping_probability = 0.5
 
-    def __init__(self, server_address, client_address = ('', 0)):
-        self.server = Server(client_address, ClientRequestHandler)
-        self.server.timeout = 0
-        self.socket = self.server.socket
-        self.server_address = server_address
+    def __init__(self, endpoint):
+        self.endpoint = endpoint
         self.pending_proposals = []
         self.ping_statistics = ECDF()
         self.ping_statistics.add(0.01)
@@ -78,7 +77,7 @@ class Client:
         self.transactions = {} # number : transaction
 
     def send_to_server(self, bytes):
-        self.socket.sendto(bytes,  self.server_address)
+        self.endpoint.send_to_server(bytes)
 
     def create_proposal(self, message_bytes, id = None):
         if id is None:
@@ -94,14 +93,14 @@ class Client:
         return id
 
     def schedule(self):
-        self.server.handle_pending_requests()
+        self.endpoint.schedule()
         self.copy_new_transactions()
         self.retransmit_packets()
         self.execute_commands()
 
     def copy_new_transactions(self):
-        while self.server.values:
-            transaction_number, bytes = self.server.values.popitem()
+        while self.endpoint.values:
+            transaction_number, bytes = self.endpoint.values.popitem()
             transaction = Transaction(transaction_number, bytes)
             self.transactions[transaction_number] = transaction
             self._remove_pending_proposal(transaction.id)
@@ -158,7 +157,7 @@ class Client:
             print('execute_command:', transaction.id, transaction.number)
 
     def close(self):
-        self.server.server_close()
+        self.endpoint.close()
 
 def test_get_clients():
     from server import main as server_main
@@ -166,8 +165,8 @@ def test_get_clients():
     t = Thread(target = server_main)
     t.deamon = True
     t.start()
-    c = Client(('localhost', 6028))
-    c2 = Client(('localhost', 6028))
+    c = Client(UDPEndpoint(('localhost', 6028)))
+    c2 = Client(UDPEndpoint(('localhost', 6028)))
     return c, c2
 
 __all__ = ['Client', 'test_get_clients']
