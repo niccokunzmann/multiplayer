@@ -5,7 +5,6 @@ from .updater import ManualUpdater
 
 def p(distributor, obj, accessFactory, proxyClass):
     id = transaction().id
-    print('create proxy')
     return distributor._get_proxy(obj, accessFactory, proxyClass, id)
 
 
