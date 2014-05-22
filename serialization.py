@@ -1,4 +1,4 @@
-from id import IDGenerator
+from .id import IDGenerator
 import pickle
 import io
 
@@ -90,18 +90,3 @@ class Serializer:
 
 __all__ = ['Serializer', 'RegistrationError']
 
-def test(obj):
-    s = Serializer()
-    id = s.register(obj)
-    b = s.dumps(obj)
-    assert id in b
-    obj2 = s.loads(b)
-    assert obj2 is obj
-    
-
-if __name__ == '__main__':
-
-#    test(object()) # TODO
-#    test('hallo') # TODO
-    class X:pass
-    test(X())

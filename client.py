@@ -1,13 +1,13 @@
-from server import Server, ClientRequestHandler, COMMANDS, number2bytes
-from endpoint import *
+from .server import Server, ClientRequestHandler, COMMANDS, number2bytes
+from .endpoint import *
 from threading import Thread
 import time
 
-from statistics import ECDF
+from .statistics import ECDF
 import queue
 import io
 
-from id import *
+from .id import *
 
 class Proposal:
     def __init__(self, message_bytes, id, client):
@@ -168,7 +168,7 @@ class Client:
         self.endpoint = endpoint
 
 def test_get_clients():
-    from server import main as server_main
+    from multiplayer.server import main as server_main
     from threading import Thread
     t = Thread(target = server_main)
     t.deamon = True
@@ -178,22 +178,4 @@ def test_get_clients():
     return c, c2
 
 __all__ = ['Client', 'test_get_clients']
-
-if __name__ == '__main__':
-    c, c2 = test_get_clients()
-
-    c.propose_to_server(b'NANANANANANANANANANANANANANANNANNANNANANANANANANA')
-
-    then = time.time()
-    time.sleep(0.1)
-    while time.time() - 1 < then:
-        c.schedule()
-        time.sleep(0.001)
-        
-    print('scheduled')
-
-    then = time.time()
-    while time.time() - 1 < then:
-        c2.schedule()
-        time.sleep(0.001)
     

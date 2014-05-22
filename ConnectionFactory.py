@@ -1,8 +1,10 @@
-from server import *
+from .server import *
 import socket
 import time
-from endpoint import *
-from client import *
+from .endpoint import *
+from .client import *
+from urllib.parse import urlparse
+import socket
 
 class UDPClientFactory:
 
@@ -23,8 +25,8 @@ class UDPClientFactory:
         return UDPEndpoint(self.address, client_address = client_address, \
                            address_family = self.address_family)
 
-    def get_client(self):
-        return Client(self.get_endpoint())
+    def get_simple_description(self):
+        return 'udp://{}:{}'.format(self.address[0], self.address[1])
 
 
 class UDPBroadcastDiscoverer:
@@ -66,6 +68,8 @@ class UDPBroadcastDiscoverer:
         return servers
         
 
+LANDiscoverer = UDPBroadcastDiscoverer
+
 class ConnectionFactory:
 
     factories = [UDPBroadcastDiscoverer]
@@ -83,16 +87,43 @@ class ConnectionFactory:
             servers.extend(factory.new_servers())
         return servers
 
-if __name__ == '__main__':
-    import server
-    import threading
-    t = threading.Thread(target = server.main)
-    t.start()
-    cf = ConnectionFactory()
-    import time
-    while 1:
-        cf.schedule()
-        new_servers = cf.new_servers()
-        if new_servers:
-            print(new_servers)
-        time.sleep(0.01)
+class URLEndpointFactory:
+
+    def __init__(self, string):
+        self.url = urlparse(selection)
+
+    @property
+    def port(self):
+        return self.url.port or SERVER_PORT
+
+    @property
+    def host(self):
+        return self.url.hostname
+
+    def get_information(self):
+        return None
+
+    def get_endpoint(self):
+        return UDPEndpoint((self.host, self.port))    
+
+    def get_simple_description(self):
+        return 'udp://{}:{}'.format(self.host, self.port)
+
+class ServerEndpointFactory:
+
+    new_server = staticmethod(create_server)
+
+    def __init__(self):
+        self.server = self.new_server()
+        self.host = socket.gethostname()
+        self.port = self.server.server_address[1]
+
+    def get_information(self):
+        return None
+
+    def get_endpoint(self):
+        return UDPEndpoint((self.host, self.port))    
+
+    def get_simple_description(self):
+        return 'udp://{}:{}'.format(self.host, self.port)
+

@@ -1,5 +1,5 @@
-from execution import *
-from FutureProxy import *
+from .execution import *
+from .FutureProxy import *
 
 def p(distributor, obj, accessFactory, proxyClass):
     id = transaction().id
@@ -77,7 +77,7 @@ if __name__ == '__main__':
     print('f.exception()', future.exception())
     print('f.result()', future.result())
     li.append(3)
-    li.append(2)
+    li.append(3)
     li.append(li)
     for i in (1, 2, 3):
         print('li.count({})'.format(i), li.count(i).result())

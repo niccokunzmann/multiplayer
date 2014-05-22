@@ -1,5 +1,5 @@
 
-from execution import transaction
+from .execution import transaction
 
 def t(future_proxy, name, args, kw, read, write):
     future_proxy._reset_dependency(name, transaction().id)

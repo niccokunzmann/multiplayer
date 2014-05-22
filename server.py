@@ -144,6 +144,17 @@ class DiscoveryRequestHandler(CommandRequestHandler):
         information = json.loads(self.read_bytes().decode('UTF-8'))
         self.server.server_discovered(self.client_address, information)
 
+def create_server(HandlerClass = ServerRequestHandler,
+         ServerClass = Server, port=SERVER_PORT):
+    import threading
+    server_address = ('', port)
+    serverd = ServerClass(server_address, ServerRequestHandler)
+    t = threading.Thread(target = server.serve_forever)
+    t.deamon = True
+    t.start()
+    return server
+    
+
 def main(HandlerClass = ServerRequestHandler,
          ServerClass = Server, port=SERVER_PORT):
     import sys
