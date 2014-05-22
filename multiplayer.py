@@ -1,11 +1,14 @@
 client = None
 model = None
 
-def console_connect_dialog():
+def console_connect_dialog(start_thread = True):
     global _endpoint
     import multiplayer.connect_dialog as connect_dialog
     endpoint = connect_dialog.console_connect_dialog()
     set_endpoint(endpoint)
+    if start_thread:
+        import multiplayer.updater as updater
+        model.set_updater(updater.ThreadingUpdater)
 
 def set_endpoint(endpoint):
     global client, _endpoint, model

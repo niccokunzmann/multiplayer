@@ -148,7 +148,7 @@ def create_server(HandlerClass = ServerRequestHandler,
          ServerClass = Server, port=SERVER_PORT):
     import threading
     server_address = ('', port)
-    serverd = ServerClass(server_address, ServerRequestHandler)
+    server = ServerClass(server_address, ServerRequestHandler)
     t = threading.Thread(target = server.serve_forever)
     t.deamon = True
     t.start()

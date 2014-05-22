@@ -3,7 +3,7 @@ import traceback
 
 
 def console_connect_dialog():
-    return ConsoleConnectDialog.ask_and_return_endpoint()
+    return ConsoleConnectDialog().ask_and_return_endpoint()
 
 
 class NoConnectionChosenError(Exception):
@@ -31,7 +31,7 @@ class ConsoleConnectDialog:
                     return
 
     def be_server(self):
-        pass
+        self.set_endpoint(ServerEndpointFactory())
 
     def ask_LAN(self):
         lan = LANDiscoverer()

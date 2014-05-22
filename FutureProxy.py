@@ -48,11 +48,12 @@ class FutureProxy:
     def _get_proxy_method(name):
         def proxy_method(self, *args, **kw):
             read = write = False
-            if self._is_write_method(name):
+            in_transaction = transaction()
+            if not in_transaction and self._is_write_method(name):
                 dependencies = (self._last_write_transaction_id,
                                 self._last_read_transaction_id)
                 write = True
-            elif self._is_read_method(name):
+            elif not in_transaction and self._is_read_method(name):
                 dependencies = (self._last_write_transaction_id,)
                 read = True
             else:

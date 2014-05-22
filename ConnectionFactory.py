@@ -110,6 +110,7 @@ class URLEndpointFactory:
         return 'udp://{}:{}'.format(self.host, self.port)
 
 class ServerEndpointFactory:
+    """ create a server and an endpoint for the server"""
 
     new_server = staticmethod(create_server)
 
