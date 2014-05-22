@@ -1,16 +1,17 @@
-
+from contextlib import contextmanager
 from serialization import Serializer, RegistrationError
 import collections
 import concurrent.futures
 from weakref import WeakValueDictionary
 import sys
 import traceback
+from threading import current_thread
 
 allow_errors = False
 
 class Future(concurrent.futures.Future):
 
-    def set_to_function_call(self, function, args, kw):
+    def set_to_function_call(self, function, args = (), kw = {}):
         try:
             result = function(*args, **kw)
         except:
@@ -37,42 +38,68 @@ class Future(concurrent.futures.Future):
 
 
 
+def transaction():
+    """=> the current active transaction"""
+    return _transactions.get(_thread_id())
+
+_transactions = {}
+
+_thread_id = lambda: id(current_thread())
+
+@contextmanager
+def in_transaction(transaction):
+    thread_id = _thread_id()
+    saved_transaction = _transactions.get(thread_id)
+    _transactions[thread_id] = transaction
+    try:
+        yield
+    finally:
+        if saved_transaction is None:
+            del _transactions[thread_id]
+        else:
+            _transactions[thread_id] = saved_transaction
+
 class PointInTranstactionChain:
 
     def __init__(self, executor, id, transaction_number, dependencies,
-                 future, function, args, kw):
+                 future, serializer, function_args_kw):
         self.executor = executor
         self.id = id
         self.transaction_number = transaction_number
         self.dependencies = dependencies
         assert not self.executor.was_executed(id)
         self.future = future
-        self.function = function
-        self.args = args
-        self.kw = kw
+        self.function_args_kw = function_args_kw
         self.unfulfilled_dependencies = set()
         self._append_to_dependencies()
+        self.serializer = serializer
 
     def __str__(self):
-        return '<{self.__class__.__name__} at {self.transaction_number} id: {self.id}>'.format(
-            self = self)
+        dependencies = (' after: {self.dependencies}'.format(self = self) if self.dependencies else '')
+        return '<{self.__class__.__name__} at {self.transaction_number} id: {self.id}{dependencies}>'.format(
+            self = self, dependencies = dependencies)
 
     __repr__ = __str__
 
     def execute(self):
         assert self.can_execute()
         try:
-            future = self.future
-            if future is None:
-                try:
-                    self.function(self, *self.args, **self.kw)
-                except:
-                    self.print_exc()
-            else:
-                future.set_to_function_call(self.function, (self,) + self.args, self.kw)
+            with in_transaction(self):
+                future = self.future
+                if future is None:
+                    try:
+                        self._execute()
+                    except:
+                        self.print_exc()
+                else:
+                    future.set_to_function_call(self._execute)
         finally:
             self.executor.dependency_fulfilled(self.id)
 
+    def _execute(self):
+        function, args, kw = self.serializer.loads(self.function_args_kw)
+        return function(*args, **kw)
+        
 
     def print_exc(self):
         traceback.print_exc()
@@ -89,6 +116,9 @@ class PointInTranstactionChain:
                 self.executor.add_dependency(id, self)
                 self.unfulfilled_dependencies.add(id)
 
+    def is_from_here(self):
+        return self.future is not None
+
 class Executor:
 
     PointInTranstactionChainClass = PointInTranstactionChain
@@ -102,16 +132,17 @@ class Executor:
         self.dependencies = collections.defaultdict(list)
         self.futures = {}
         self.register = self.serializer.register
+        self.register_default = self.serializer.register_default
 
     def execute_command(self, transaction):
         """called by the client"""
         try:
             command = self.serializer.load(transaction.get_reader())
-            function, dependencies, args, kw = command
+            dependencies, function_args_kw = command
             future = self._get_future(transaction.id)
             transactionPoint = self.PointInTranstactionChainClass(
                 self, transaction.id, transaction.number, dependencies,
-                future, function, args, kw)
+                future, self.serializer, function_args_kw)
             if transactionPoint.can_execute():
                 transactionPoint.execute()
             while self.ready_transactionPoints:
@@ -121,12 +152,12 @@ class Executor:
             self._del_future_reference(id)
 
     def get_command(self, function, args = (), kw = {}, dependencies = ()):
-        command = (function, dependencies, args, kw)
+        command = dependencies, self.serializer.dumps((function, args, kw))
         message = self.serializer.dumps(command)
         return self.client.create_proposal(message)
 
     def future_call(self, function, args = (), kw = {}, dependencies = ()):
-        command = self.get_command(function, args, kw)
+        command = self.get_command(function, args, kw, dependencies = dependencies)
         id = command.id
         future = self._create_future(id)
         command.send()
@@ -158,7 +189,7 @@ class Executor:
                 if waitingTransactionPoint.can_execute():
                     self.ready_transactionPoints.append(waitingTransactionPoint)
 
-__all__ = ['Executor', 'RegistrationError']
+__all__ = ['Executor', 'RegistrationError', 'transaction']
 
 if __name__ == '__main__':
     import time

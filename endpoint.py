@@ -1,6 +1,7 @@
 """endpoints are used to send commands to servers"""
 
 from socket import AF_INET
+from server import *
 
 class UDPEndpoint:
     

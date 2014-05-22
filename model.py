@@ -1,11 +1,10 @@
 from execution import *
 from FutureProxy import *
 
-def p(transaction, distributor, obj, accessFactory, proxyClass):
-    read, write = accessFactory()
-    proxy = proxyClass(obj, distributor._executor, read, write, transaction.id)
-    distributor._register(proxy, transaction.id)
-    return proxy
+def p(distributor, obj, accessFactory, proxyClass):
+    id = transaction().id
+    print('create proxy')
+    return distributor._get_proxy(obj, accessFactory, proxyClass, id)
 
 class Distributor:
 
@@ -16,11 +15,18 @@ class Distributor:
         self._client = client
         self._executor = self.ExecutorClass(client)
         self._register = self._executor.register
+        self._register_default = self._executor.register_default
         self._register(self, self.__class__)
 
     def proxy(self, obj, accessFactory):
-        # TODO: future of self?
-        return self._executor.future_call(self._proxy, (self, obj, accessFactory, self.ProxyClass))
+        future_to_proxy = self._executor.future_call(self._proxy, (self, obj, accessFactory, self.ProxyClass))
+        id = future_to_proxy.id
+        return self._get_proxy(obj, accessFactory, self.ProxyClass, id)
+
+    def _get_proxy(self, obj, accessFactory, proxyClass, id):
+        read, write = accessFactory()
+        proxy = proxyClass(obj, self._executor, read, write, id)
+        return self._register_default(proxy, id)
 
     def list(self, from_list = []):
         return self.proxy(from_list[:], listAccess)
@@ -34,6 +40,20 @@ list_write = set(['append'])
 def listAccess():
     return list_read, list_write
 
+def functionAccess():
+    return (), ('__call__',)
+
+class Model:
+    def __init__(self, client):
+        self._client = client
+        self._distributor = Distributor(self.client)
+
+    def everywhere(self, callable):
+        assert hasattr(callable, '__call__')
+        return self._distributor.proxy(callable, functionAccess)
+
+    transaction = staticmethod(transaction)
+
 if __name__ == '__main__':
     from client import test_get_clients
     import time
@@ -41,11 +61,7 @@ if __name__ == '__main__':
     c1, c2 = test_get_clients()
     d1 = Distributor(c1)
     d2 = Distributor(c2)
-    l_f = d1.list()
-    while not l_f.done():
-        c1.schedule()
-
-    li = l_f.result()
+    li = d1.list()
 
     def t():
         while 1:

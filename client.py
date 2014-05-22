@@ -75,6 +75,7 @@ class Client:
         self.last_get_request = -1
         self.executor = None
         self.transactions = {} # number : transaction
+        self._closed = False
 
     def send_to_server(self, bytes):
         self.endpoint.send_to_server(bytes)
@@ -158,6 +159,13 @@ class Client:
 
     def close(self):
         self.endpoint.close()
+        self._closed = True
+
+    def is_closed(self):
+        return self._closed
+
+    def set_endpoint(self, endpoint):
+        self.endpoint = endpoint
 
 def test_get_clients():
     from server import main as server_main

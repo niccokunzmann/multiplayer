@@ -38,7 +38,7 @@ class Serializer:
         self._check_id(id, obj)
         return id
 
-    def register(self, obj, id = None, force = False):
+    def register(self, obj, id = None, force = False, check = True):
         """register an object under a new id so that it can be serialized.
         if id is None: a new id is created
         Returns the id of the object."""
@@ -54,8 +54,13 @@ class Serializer:
             return id
         obj.get_unique_identifier = get_unique_identifier
         self.id_to_object.setdefault(id, obj)
-        self._check_id(id, obj)
+        if check:
+            self._check_id(id, obj)
         return id
+
+    def register_default(self, obj, id, force = False):
+        self.register(obj, id, force = force, check = False)
+        return self.id_to_object[id]
 
     def _persistent_load(self, id):
         if id not in self.id_to_object:

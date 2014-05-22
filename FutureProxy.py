@@ -1,6 +1,8 @@
 
-def t(transaction, future_proxy, name, args, kw, read, write):
-    future_proxy._reset_dependency(name, transaction.id)
+from execution import transaction
+
+def t(future_proxy, name, args, kw, read, write):
+    future_proxy._reset_dependency(name, transaction().id)
     return getattr(future_proxy._obj, name)(*args, **kw)
 
 class FutureProxy:
@@ -38,8 +40,9 @@ class FutureProxy:
         self._create_proxy_attribute(name)
         return getattr(self, name)
 
-    def _create_proxy_attribute(self, name):
-        setattr(self.__class__, name, self._ProxyAttribute(name, self._get_proxy_method(name)))
+    @classmethod
+    def _create_proxy_attribute(cls, name):
+        setattr(cls, name, cls._get_proxy_method(name))
 
     @staticmethod
     def _get_proxy_method(name):
@@ -70,5 +73,9 @@ class FutureProxy:
             self._last_write_transaction_id = id
 
     get_unique_identifier = None
+
+# TODO: maybe add magic methods here
+
+FutureProxy._create_proxy_attribute('__call__')
 
 __all__ = ['FutureProxy']
