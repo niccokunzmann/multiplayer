@@ -25,13 +25,13 @@ class ConsoleConnectDialog:
             print('b... to go back')
             selection = self.input()
             if selection in '0Oo':
-                return self.be_server()
+                if self.ask_server(): return True
             elif selection in '1Ll':
-                if self.ask_LAN():
-                    return
+                if self.ask_LAN(): return True
 
-    def be_server(self):
+    def ask_server(self):
         self.set_endpoint(ServerEndpointFactory())
+        return True
 
     def ask_LAN(self):
         lan = LANDiscoverer()
@@ -50,9 +50,10 @@ class ConsoleConnectDialog:
                         self.set_endpoint(server)
                         return True
                 try:
-                    self.set_endpoint(URLEndpointFactory(url))
+                    self.set_endpoint(URLEndpointFactory(selection))
                 except:
                     traceback.print_exc()
+                else: return True
             if selection.strip() == 'b':
                 break
 

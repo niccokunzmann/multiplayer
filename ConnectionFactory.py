@@ -90,7 +90,7 @@ class ConnectionFactory:
 class URLEndpointFactory:
 
     def __init__(self, string):
-        self.url = urlparse(selection)
+        self.url = urlparse(string)
 
     @property
     def port(self):
@@ -98,7 +98,7 @@ class URLEndpointFactory:
 
     @property
     def host(self):
-        return self.url.hostname
+        return self.url.hostname or self.url.path
 
     def get_information(self):
         return None
