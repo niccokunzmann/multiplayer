@@ -9,26 +9,39 @@ class Serializer:
 
     def __init__(self):
         self.id_generator = IDGenerator()
-        self.id_to_object = {}
+        self.id_to_persistent_id = {}
+        self.persistent_id_to_object = {}
 
     def new_id(self):
         return self.id_generator.get_id()
 
     def get_id(self, obj):
-        """return the id of an object. return None if ther is no id."""
-        id_function = getattr(obj, 'get_unique_identifier', None)
-        if id_function is None:
-            return
-        return id_function()
+        """return the id of an object. return None if there is no id."""
+        _id = id(obj)
+        persistent_id = self.id_to_persistent_id.get(_id)
+        if persistent_id is None: return
+        default = []
+        saved_object = self.persistent_id_to_object.get(persistent_id, default)
+        if saved_object is obj:
+            return persistent_id
 
-    def _check_id(self, id, obj):
-        if id not in self.id_to_object:
-            raise RegistrationError("{} not registered under {}. The id is not in use.".format(obj, rer(id)), id)
-        if self.id_to_object[id] is not obj:
-            message = "get_unique_identifier() must return the id of the registered object. {} has not been registered under id {}.".format(obj, repr(id))
-            if id in self.id_to_object:
-                message += "But {} is registered under id {}.".format(self.id_to_object[id], repr(id))
-            raise RegistrationError(message, id)
+    def _check_id(self, persistent_id, obj):
+        if persistent_id not in self.persistent_id_to_object:
+            raise RegistrationError("{} not registered under {}. The id is not in use.".format(obj, repr(persistent_id)))
+        if self.persistent_id_to_object[persistent_id] is not obj:
+            message = "get_unique_identifier() must return the id of the registered object. {} has not been registered under id {}.".format(obj, repr(persistent_id))
+            other_object = self.persistent_id_to_object.get(persistent_id)
+            if other_object is not obj:
+                message += "But {} is registered under id {}.".format(other_object, repr(persistent_id))
+            raise RegistrationError(message, persistent_id)
+        if self.id_to_persistent_id[id(obj)] != persistent_id:
+            # Maybe this is so important that it needs to be checked, always.
+            # Maybe an assertion?
+            other_persistent_id = self.id_to_persistent_id[id(obj)]
+            if self.persistent_id_to_object[other_persistent_id] is not obj:
+                other_object = self.persistent_id_to_object[other_persistent_id]
+                raise RegistrationError("The object {} can not be registered because the object {} "\
+                                        "was registered before and both have the same id {}.".format(obj, other_object, id(obj)), persistent_id)
 
 
     def _persistent_id(self, obj):
@@ -38,34 +51,29 @@ class Serializer:
         self._check_id(id, obj)
         return id
 
-    def register(self, obj, id = None, force = False, check = True):
+    def register(self, obj, persistent_id = None, force = False, check = True):
         """register an object under a new id so that it can be serialized.
         if id is None: a new id is created
         Returns the id of the object."""
-        _id = self.get_id(obj)
-        if id is None:
-            if _id is not None and not force:
-                raise ValueError("Usually, you do not need to register {} with the id {} under a new random id. Use force = True if you really want to.".format(obj, repr(id)))
-            id = self.new_id()
-                
-        def get_unique_identifier():
-            """returns a unique identifier of the object.
-            This is used to identify objects across clients."""
-            return id
-        obj.get_unique_identifier = get_unique_identifier
-        self.id_to_object.setdefault(id, obj)
+        other_presistent_id = self.get_id(obj)
+        if persistent_id is None:
+            if other_presistent_id is not None and not force:
+                raise ValueError("Usually, you do not need to register {} with the id {} under a new random id. Use force = True if you really want to.".format(obj, repr(other_presistent_id)))
+            persistent_id = self.new_id()
+        self.persistent_id_to_object.setdefault(persistent_id, obj)
+        self.id_to_persistent_id.setdefault(id(obj), persistent_id)
         if check:
-            self._check_id(id, obj)
-        return id
+            self._check_id(persistent_id, obj)
+        return persistent_id
 
-    def register_default(self, obj, id, force = False):
-        self.register(obj, id, force = force, check = False)
-        return self.id_to_object[id]
+    def register_default(self, obj, persistent_id, force = False):
+        self.register(obj, persistent_id, force = force, check = False)
+        return self.persistent_id_to_object[persistent_id]
 
-    def _persistent_load(self, id):
-        if id not in self.id_to_object:
-            raise pickle.UnpicklingError("unsupported persistent id {} encountered".format(id), id)
-        return self.id_to_object[id]
+    def _persistent_load(self, persistent_id):
+        if persistent_id not in self.persistent_id_to_object:
+            raise pickle.UnpicklingError("unsupported persistent id {} encountered".format(persistent_id), persistent_id)
+        return self.persistent_id_to_object[persistent_id]
 
     def dumps(self, obj):
         file = io.BytesIO()
