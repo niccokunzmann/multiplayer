@@ -37,6 +37,7 @@ class Server(UDPServer):
     # http://stackoverflow.com/questions/1098897/what-is-the-largest-safe-udp-packet-size-on-the-internet
     max_packet_size = 65507
     information = {}
+##    allow_reuse_address = True
 
     def __init__(self,  server_address, RequestHandlerClass, address_family = socket.AF_INET):
         self.address_family = address_family
@@ -65,6 +66,7 @@ class CommandRequestHandler(DatagramRequestHandler):
         while True:
             command = self.rfile.read(1)
             if not command: break
+            if command not in COMMANDS: break
             name = 'cmd_' + COMMANDS[command]
             method =  getattr(self, name)
             method()
@@ -141,17 +143,23 @@ class ClientRequestHandler(CommandRequestHandler):
 class DiscoveryRequestHandler(CommandRequestHandler):
 
     def cmd_there_is_a_server(self):
-        information = json.loads(self.read_bytes().decode('UTF-8'))
+        string = self.read_bytes().decode('UTF-8')
+        if string:
+            information = json.loads(string)
+        else:
+            information = {}
         self.server.server_discovered(self.client_address, information)
 
 def create_server(HandlerClass = ServerRequestHandler,
-         ServerClass = Server, port=SERVER_PORT):
+         ServerClass = Server, port=SERVER_PORT, start_thread = True):
     import threading
     server_address = ('', port)
     server = ServerClass(server_address, ServerRequestHandler)
     t = threading.Thread(target = server.serve_forever)
     t.deamon = True
-    t.start()
+    if start_thread:
+        t.start()
+    server.thread = t
     return server
     
 

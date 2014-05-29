@@ -14,16 +14,13 @@ Exception handling, retransmission mechanism, and response validation are imperf
 Use at your own risk!
 '''
  
-import socket, platform, sys, random, select
+import socket, platform, sys, random
  
 if platform.python_version() >= '3.0.0':
 ##    sys.exit(input('Python 3 is not supported. Press enter to abort...'))
     ord = lambda x: x
     raw_input = input
  
-print('STUN Client by Zhang NS <deltazhangns@163.com>')
-print('Environment: Python %s on %s %s\n' % (platform.python_version(), platform.system(), platform.version()))
-print('Defualt port for STUN: 3478')
 servers = '''
 numb.viagenie.ca
 provserver.televolution.net
@@ -59,9 +56,7 @@ stun.ideasip.com
 stun.softjoys.com
 stun.voipbuster.com
 '''
-print('''
-Some currently available free STUN servers:
-''' + servers)
+
 
 server_list = []
 for line in servers.splitlines():
@@ -123,45 +118,15 @@ def GetTAddressByResponse(r): # Return tuple (IP, Port) or False
         IP = '%s.%s.%s.%s' % (ord(r[iter + 8]), ord(r[iter + 9]), ord(r[iter + 10]), ord(r[iter + 11])) #Dot-decimal notation
         return (IP, port)
 
-class StunAddressRequester:
-
-    servers_to_try = 5
-    retry_time = 0.1
-
-    def __init__(self, address = ('', 0), address_family = socket.AF_INET):
-        self.socket = socket.socket(address_family, socket.SOCK_DGRAM)
-        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.socket.bind(address)
-        self._index = 0
-        self.internet_addresses = set()
-
-    @property
-    def server_list(self):
-        return server_list
-
-    @property
-    def server_addresses_to_try(self):
-        for i in range(self.servers_to_try):
-            self._index %= len(self.server_list)
-            yield self.server_list[self._index]
-            self._index += 1
-
-    def schedule(self):
-        for server_address in self.server_addresses_to_try:
-            self.socket.sendto(GenReq(), server)
-        while select.select([self.socket], [], [], 0)
-            resp = self.socket.recv(BUFF)
-            taddr = GetTAddressByResponse(resp)
-            self.internet_addresses.add(taddr)
-
-    def schedule_for(self, seconds):
-        for i in range(int(seconds / self.retry_time)):
-            self.schedule()
-            time.sleep(self.retry_time)
-
-__all__ = ['StunAddressRequester']
+__all__ = ['GetTAddressByResponse', 'GenReq', 'server_list']
 
 if __name__ == '__main__':
+    print('STUN Client by Zhang NS <deltazhangns@163.com>')
+    print('Environment: Python %s on %s %s\n' % (platform.python_version(), platform.system(), platform.version()))
+    print('Defualt port for STUN: 3478')
+    print('''
+    Some currently available free STUN servers:
+    ''' + servers)
     
     c = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     c.settimeout(timeout)

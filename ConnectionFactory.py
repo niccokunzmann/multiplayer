@@ -5,7 +5,7 @@ from .endpoint import *
 from .client import *
 from urllib.parse import urlparse
 import socket
-from stun import *
+from .stun import *
 
 class UDPClientFactory:
 
@@ -115,12 +115,18 @@ def address_to_url(address):
 class ServerEndpointFactory:
     """ create a server and an endpoint for the server"""
 
-    new_server = staticmethod(create_server)
+    @staticmethod
+    def new_server():
+        return create_server(start_thread = False)
 
     def __init__(self):
         self.server = self.new_server()
         self.host = socket.gethostname()
         self.port = self.server.server_address[1]
+
+    @property
+    def socket(self):
+        return self.server.socket
 
     def get_information(self):
         return None
@@ -129,10 +135,9 @@ class ServerEndpointFactory:
         return UDPEndpoint((self.host, self.port))    
 
     def get_simple_description(self):
-        s = 'local: udp://{}:{}'.format(self.host, self.port)
-        for internet_address in self.internet_addresses:
-            s += '\n internet: udp://{}:{}'.format(internet_address[0], internet_address[1])
-
+        return 'udp://{}:{}'.format(self.host, self.port)
+    
 __all__ = ['ServerEndpointFactory', 'URLEndpointFactory',
            'ConnectionFactory', 'UDPBroadcastDiscoverer',
-           'UDPClientFactory', 'address_to_url', 'url_to_address']
+           'UDPClientFactory', 'address_to_url', 'url_to_address',
+           'LANDiscoverer']

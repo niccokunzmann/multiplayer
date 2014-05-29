@@ -1,7 +1,7 @@
 from .ConnectionFactory import *
 from .holepunch import *
-from .stun import *
 import traceback
+##import multiplayer.hanging_threads
 
 
 def console_connect_dialog():
@@ -14,7 +14,6 @@ class ConsoleConnectDialog:
 
     def __init__(self):
         self.endpoint_factory = None
-        self.hole_puncher = 
 
     def input(self):
         return input('> ')
@@ -38,13 +37,17 @@ class ConsoleConnectDialog:
 
     def ask_internet(self):
         print('The only option available is hole punching.')
-        hole_punch = HolePunchMechanism()
-        stun = StunAddressRequester(('', hole_punch.port))
+        hole_punch = HolePunchConnector.from_address()
+        hole_punch.schedule_for(0.5)
         while 1:
-            print(' ...Type in the server url udp://...:...')
+            hole_punch.schedule()
+            print(' ... type in the server url udp://...:...')
             print('b... to go back')
+            for address in hole_punch.internet_addresses:
+                print('Pass "', address_to_url(address), '" to the server.')
             selection = self.input()
-            if selection == 'b':
+            if selection.strip() == 'b':
+                hole_punch.socket.close()
                 return False
             if selection:
                 hole_punch.punch_to(selection)
@@ -52,31 +55,28 @@ class ConsoleConnectDialog:
                 print('Punching my way to the invited people ...')
                 hole_punch.schedule_for(0.5)
             for succeeded in hole_punch.punch_succeeded:
-                print('Connected to', address_to_url(succeeded))
-                break
+                self.set_endpoint(UDPClientFactory(succeeded, {}, client_address = ('', hole_punch.port)))
+                return True
             for failed in hole_punch.punch_failed:
                 print('Still not connected to', address_to_url(failed))
             print(' ... nothing to retry')
-        self.set_endpoint(UDPClientFactory(succeeded, {}, client_address = ('', hole_punch.port)))
-        return True
 
     def ask_server(self):
         endpoint = ServerEndpointFactory()
-        hole_punch = HolePunchMechanism(('', endpoint.port))
-        stun = StunAddressRequester(('', endpoint.port))
-        stun.schedule_for(0.5)
+        hole_punch = HolePunchConnector.from_socket(endpoint.socket)
+        hole_punch.schedule_for(0.5)
         print('Invite someone?')
         while 1:
             print('start ... to start the game')
             print('b     ... to go back')
-            stun.schedule()
             hole_punch.schedule()
-            for address in stun.internet_addresses:
-                print('Pass "', address_to_url(address), '" to some one to invite.')
+            for address in hole_punch.internet_addresses:
+                print('Pass "', address_to_url(address), '" to someone to invite.')
             selection = self.input()
             if selection == 'start':
                 break
             if selection == 'b':
+                hole_punch.socket.close()
                 return False
             if selection:
                 hole_punch.punch_to(selection)
@@ -89,6 +89,7 @@ class ConsoleConnectDialog:
                 print('Still not connected to', address_to_url(failed))
             print('      ... nothing to retry')
         self.set_endpoint(endpoint)
+        endpoint.server.thread.start()
         return True
 
     def ask_LAN(self):
@@ -102,6 +103,8 @@ class ConsoleConnectDialog:
             print('b... to go back')
             print('.... press enter to refresh or enter your own connection')
             selection = self.input()
+            if selection.strip() == 'b':
+                break
             if selection:
                 for i, server in enumerate(servers):
                     if str(i) == selection.strip():
@@ -112,8 +115,6 @@ class ConsoleConnectDialog:
                 except:
                     traceback.print_exc()
                 else: return True
-            if selection.strip() == 'b':
-                break
 
     def set_endpoint(self, server):
         print('connection to', server.get_simple_description())

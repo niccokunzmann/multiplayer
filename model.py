@@ -83,6 +83,6 @@ class ModelFunction:
         if transaction():
             return self.function(*args, **kw)
         if self.proxy is None:
-            self.proxy = self.model.proxy(self, functionAccess)
+            self.proxy = self.model.proxy(self)
         return self.proxy(*args, **kw)
 
