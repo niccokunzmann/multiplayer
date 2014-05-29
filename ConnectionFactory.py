@@ -5,13 +5,15 @@ from .endpoint import *
 from .client import *
 from urllib.parse import urlparse
 import socket
+from stun import *
 
 class UDPClientFactory:
 
-    def __init__(self, address, address_family, information):
+    def __init__(self, address, information, client_address = ('', 0), address_family = socket.AF_INET):
         self.address = address
         self.address_family = address_family
         self.information = information
+        self.client_address = client_address
 
     def __repr__(self):
         return '<UDP server at {}:{}>'.format(self.address[0], self.address[1])
@@ -21,8 +23,8 @@ class UDPClientFactory:
     def get_information(self):
         return self.information
 
-    def get_endpoint(self, client_address = ('', 0)):
-        return UDPEndpoint(self.address, client_address = client_address, \
+    def get_endpoint(self):
+        return UDPEndpoint(self.address, client_address = self.client_address, \
                            address_family = self.address_family)
 
     def get_simple_description(self):
@@ -90,15 +92,7 @@ class ConnectionFactory:
 class URLEndpointFactory:
 
     def __init__(self, string):
-        self.url = urlparse(string)
-
-    @property
-    def port(self):
-        return self.url.port or SERVER_PORT
-
-    @property
-    def host(self):
-        return self.url.hostname or self.url.path
+        self.host, self.port = url_to_address(string)
 
     def get_information(self):
         return None
@@ -109,6 +103,15 @@ class URLEndpointFactory:
     def get_simple_description(self):
         return 'udp://{}:{}'.format(self.host, self.port)
 
+def url_to_address(string):
+    url = urlparse(string)
+    port = url.port or SERVER_PORT
+    host = url.hostname or url.path
+    return host, port
+
+def address_to_url(address):
+    return 'udp://{}:{}'.format(address[0], address[1])
+        
 class ServerEndpointFactory:
     """ create a server and an endpoint for the server"""
 
@@ -126,5 +129,10 @@ class ServerEndpointFactory:
         return UDPEndpoint((self.host, self.port))    
 
     def get_simple_description(self):
-        return 'udp://{}:{}'.format(self.host, self.port)
+        s = 'local: udp://{}:{}'.format(self.host, self.port)
+        for internet_address in self.internet_addresses:
+            s += '\n internet: udp://{}:{}'.format(internet_address[0], internet_address[1])
 
+__all__ = ['ServerEndpointFactory', 'URLEndpointFactory',
+           'ConnectionFactory', 'UDPBroadcastDiscoverer',
+           'UDPClientFactory', 'address_to_url', 'url_to_address']

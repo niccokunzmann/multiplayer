@@ -14,7 +14,7 @@ Exception handling, retransmission mechanism, and response validation are imperf
 Use at your own risk!
 '''
  
-import socket, platform, sys, random
+import socket, platform, sys, random, select
  
 if platform.python_version() >= '3.0.0':
 ##    sys.exit(input('Python 3 is not supported. Press enter to abort...'))
@@ -123,33 +123,71 @@ def GetTAddressByResponse(r): # Return tuple (IP, Port) or False
         IP = '%s.%s.%s.%s' % (ord(r[iter + 8]), ord(r[iter + 9]), ord(r[iter + 10]), ord(r[iter + 11])) #Dot-decimal notation
         return (IP, port)
 
- 
+class StunAddressRequester:
 
-c = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-c.settimeout(timeout)
-c.bind(('', 0))
+    servers_to_try = 5
+    retry_time = 0.1
 
-while True:
-    for server in server_list:
+    def __init__(self, address = ('', 0), address_family = socket.AF_INET):
+        self.socket = socket.socket(address_family, socket.SOCK_DGRAM)
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.socket.bind(address)
+        self._index = 0
+        self.internet_addresses = set()
+
+    @property
+    def server_list(self):
+        return server_list
+
+    @property
+    def server_addresses_to_try(self):
+        for i in range(self.servers_to_try):
+            self._index %= len(self.server_list)
+            yield self.server_list[self._index]
+            self._index += 1
+
+    def schedule(self):
+        for server_address in self.server_addresses_to_try:
+            self.socket.sendto(GenReq(), server)
+        while select.select([self.socket], [], [], 0)
+            resp = self.socket.recv(BUFF)
+            taddr = GetTAddressByResponse(resp)
+            self.internet_addresses.add(taddr)
+
+    def schedule_for(self, seconds):
+        for i in range(int(seconds / self.retry_time)):
+            self.schedule()
+            time.sleep(self.retry_time)
+
+__all__ = ['StunAddressRequester']
+
+if __name__ == '__main__':
+    
+    c = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    c.settimeout(timeout)
+    c.bind(('', 0))
+
+    while True:
+        for server in server_list:
+            try:
+                c.sendto(GenReq(), server)
+                print('STUN request sent...', server)
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                print('Error when sending request: %s' % e)
+                continue
         try:
-            c.sendto(GenReq(), server)
-            print('STUN request sent...', server)
+            print('-----------------------------')
+            while 1:
+                resp = c.recv(BUFF)
+                taddr = GetTAddressByResponse(resp)
+                if taddr:
+                    print('STUN server returns %s:%s' % taddr)
+                    print('\x07') # Indicate Success Response
+                else:
+                    print('STUN server returns non-Success Response!')
         except Exception as e:
             import traceback
             traceback.print_exc()
-            print('Error when sending request: %s' % e)
-            continue
-    try:
-        print('-----------------------------')
-        while 1:
-            resp = c.recv(BUFF)
-            taddr = GetTAddressByResponse(resp)
-            if taddr:
-                print('STUN server returns %s:%s' % taddr)
-                print('\x07') # Indicate Success Response
-            else:
-                print('STUN server returns non-Success Response!')
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        print('Error when receiving response: %s' % e)
+            print('Error when receiving response: %s' % e)
