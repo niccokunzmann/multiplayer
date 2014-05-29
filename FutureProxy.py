@@ -12,7 +12,10 @@ def t(proxy, name, args, kw):
 class ProxyGuts:
 
     # see https://docs.python.org/3.3/reference/datamodel.html
-    future_free_attributes = set("""__subclasscheck__ __bool__ __int__ __length_hint__ __hash__ __format__ __dir__ __index__ __contains__ __len__""".split())
+    future_free_attributes = set("""__subclasscheck__ __bool__
+                       __int__ __length_hint__ __hash__
+                       __format__ __dir__ __index__ __contains__
+                       __len__ __str__ __repr__""".split())
 
     def __init__(self, obj, executor, read, const, created_id):
         """
@@ -28,7 +31,7 @@ class ProxyGuts:
             the first transaction id after which is object is created"""
         self.obj = obj
         self.read = read
-        self.local = const
+        self.const = const
         self.executor = executor
         self.last_write_transaction_id = created_id
         self.last_read_transaction_id = created_id
@@ -42,11 +45,11 @@ class ProxyGuts:
     def call_attribute_future(self, proxy, name, args, kw):
         if transaction():
             return self.call_attribute_in_transaction(proxy, name, args, kw)
-        if self.is_write_method(name):
-            return self.call_write_attribute(proxy, name, args, kw)
+        if self.is_const_method(name):
+            return self.call_const_attribute(proxy, name, args, kw)
         if self.is_read_method(name):
-            return self.call_write_attribute(proxy, name, args, kw)
-        return self.call_const_attribute(proxy, name, args, kw)
+            return self.call_read_attribute(proxy, name, args, kw)
+        return self.call_write_attribute(proxy, name, args, kw)
 
     def call_attribute(self, proxy, name, args, kw):
         future = self.call_attribute_future(proxy, name, args, kw)
@@ -84,15 +87,15 @@ class ProxyGuts:
     def is_read_method(self, name):
         return name in self.read
 
-    def is_write_method(self, name):
-        return name not in self.local and name not in self.read
+    def is_const_method(self, name):
+        return name in self.const
 
     transaction = staticmethod(t)
 
     def reset_dependency(self, name, id):
         if self.is_read_method(name):
             self.last_read_transaction_id = id
-        if self.is_write_method(name): # no elif!
+        else:
             self.last_write_transaction_id = id
 
 class FutureProxyBase:
