@@ -1,6 +1,7 @@
 from .execution import *
 from .FutureProxy import *
 from .updater import ManualUpdater
+from .access_mapping import get_access_mapping
 
 
 def p(distributor, obj, accessFactory, proxyClass):
@@ -36,10 +37,10 @@ class Model:
         return self._register_default(proxy, id)
 
     def _find_access_factory_for(self, obj):
-        return default_access_factory
+        return get_access_mapping(type(obj))
 
     def list(self, from_list = []):
-        return self.proxy(from_list[:], listAccess)
+        return self.proxy(from_list[:])
 
     def everywhere(self, callable):
         assert hasattr(callable, '__call__')
@@ -64,19 +65,6 @@ class Model:
         """=> if False you need to call update() yourself.
         if True the model will update itself without you needing to do anything"""
         return self._updater.is_updating()
-    
-
-list_read = set(['count'])
-list_const = set([])
-
-def listAccess():
-    return list_read, list_const
-
-def functionAccess():
-    return (), ('__call__',)
-
-def default_access_factory():
-    return (), ()
 
 class ModelFunction:
 

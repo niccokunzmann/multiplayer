@@ -30,3 +30,5 @@ print('li.count(li)', li.count(li).result())
 ##    print(l.not_an_attribute())
 
 print('isinstance(li, list)', isinstance(li, list))
+if bool(li):
+    print('li is True')

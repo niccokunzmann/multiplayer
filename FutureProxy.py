@@ -12,7 +12,7 @@ def t(proxy, name, args, kw):
 class ProxyGuts:
 
     # see https://docs.python.org/3.3/reference/datamodel.html
-    future_free_attributes = set("""__subclasscheck__ __bool__ __int__ __length_hint__ __hash__ __format__ __dir__ __index__ __contains__""".split())
+    future_free_attributes = set("""__subclasscheck__ __bool__ __int__ __length_hint__ __hash__ __format__ __dir__ __index__ __contains__ __len__""".split())
 
     def __init__(self, obj, executor, read, const, created_id):
         """
