@@ -11,7 +11,7 @@ def p(distributor, obj, accessFactory, proxyClass):
 class Model:
 
     ExecutorClass = Executor
-    ProxyClass = FutureProxy
+    ProxyClass = staticmethod(FutureProxy)
 
     update_interval = 0.002
 
@@ -23,15 +23,20 @@ class Model:
         self._register(self, self.__class__)
         self._updater = ManualUpdater(client)
 
-    def proxy(self, obj, accessFactory):
+    def proxy(self, obj, accessFactory = None):
+        if accessFactory is None:
+            accessFactory = self._find_access_factory_for(obj)
         future_to_proxy = self._executor.future_call(self._proxy, (self, obj, accessFactory, self.ProxyClass))
         id = future_to_proxy.id
         return self._get_proxy(obj, accessFactory, self.ProxyClass, id)
 
     def _get_proxy(self, obj, accessFactory, proxyClass, id):
-        read, write = accessFactory()
-        proxy = proxyClass(obj, self._executor, read, write, id)
+        read, const = accessFactory()
+        proxy = proxyClass(obj, self._executor, read, const, id)
         return self._register_default(proxy, id)
+
+    def _find_access_factory_for(self, obj):
+        return default_access_factory
 
     def list(self, from_list = []):
         return self.proxy(from_list[:], listAccess)
@@ -62,13 +67,16 @@ class Model:
     
 
 list_read = set(['count'])
-list_write = set(['append'])
+list_const = set([])
 
 def listAccess():
-    return list_read, list_write
+    return list_read, list_const
 
 def functionAccess():
     return (), ('__call__',)
+
+def default_access_factory():
+    return (), ()
 
 class ModelFunction:
 
@@ -89,3 +97,4 @@ class ModelFunction:
         if self.proxy is None:
             self.proxy = self.model.proxy(self, functionAccess)
         return self.proxy(*args, **kw)
+

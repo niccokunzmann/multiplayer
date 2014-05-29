@@ -28,3 +28,5 @@ for i in (1, 2, 3):
     print('li.count({})'.format(i), li.count(i).result())
 print('li.count(li)', li.count(li).result())
 ##    print(l.not_an_attribute())
+
+print('isinstance(li, list)', isinstance(li, list))
