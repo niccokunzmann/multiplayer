@@ -11,7 +11,7 @@ import traceback
 import types
 
 noMagicMethods= set(['__class__', '__name__', '__new__', '__init__', '__doc__',\
-                     '__metaclass__', '__del__', '__base__'])
+                     '__metaclass__', '__del__', '__base__', '__qualname__'])
 magicMethods= set([])
 
 _onChange= []
