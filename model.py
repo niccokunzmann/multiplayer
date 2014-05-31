@@ -8,6 +8,8 @@ def p(distributor, obj, accessFactory, proxyClass):
     id = transaction().id
     return distributor._get_proxy(obj, accessFactory, proxyClass, id)
 
+def call(function, args, kw):
+    return function(*args, **kw)
 
 class Model:
 
@@ -23,6 +25,7 @@ class Model:
         self._register_default = self._executor.register_default
         self._register(self, self.__class__)
         self._updater = ManualUpdater(client)
+        self._everywhere_proxy = None
 
     def proxy(self, obj, accessFactory = None):
         if accessFactory is None:
@@ -44,7 +47,15 @@ class Model:
 
     def everywhere(self, callable):
         assert hasattr(callable, '__call__')
-        return ModelFunction(self, callable)
+        if self._everywhere_proxy is None:
+            self._everywhere_proxy = self.proxy(call)
+        def _call(*args, **kw):
+            if transaction():
+                return callable(*args, **kw)
+            return self._everywhere_proxy(_call, args, kw)
+        _call.__name__ = callable.__name__
+        _call.__module__ = callable.__module__
+        return _call
 
     transaction = staticmethod(transaction)
 
@@ -66,23 +77,4 @@ class Model:
         if True the model will update itself without you needing to do anything"""
         return self._updater.is_updating()
 
-class ModelFunction:
-
-    def __init__(self, model, function):
-        self.proxy = None
-        self.model = model
-        self.function = function
-        self.__name__ = function.__name__
-        self.__qualname__ = getattr(function, '__qualname__', None)
-        self.__module__ = function.__module__
-
-    def __reduce__(self):
-        return self.function.__name__
-
-    def __call__(self, *args, **kw):
-        if transaction():
-            return self.function(*args, **kw)
-        if self.proxy is None:
-            self.proxy = self.model.proxy(self)
-        return self.proxy(*args, **kw)
-
+__all__ = ['Model']
