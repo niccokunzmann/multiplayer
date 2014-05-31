@@ -3,6 +3,8 @@ from .FutureProxy import *
 from .updater import ManualUpdater
 from .access_mapping import get_access_mapping
 
+from functools import wraps
+
 
 def p(distributor, obj, accessFactory, proxyClass):
     id = transaction().id
@@ -49,11 +51,11 @@ class Model:
         assert hasattr(callable, '__call__')
         if self._everywhere_proxy is None:
             self._everywhere_proxy = self.proxy(call)
+        @wraps(callable)
         def _call(*args, **kw):
             if transaction():
                 return callable(*args, **kw)
             return self._everywhere_proxy(_call, args, kw)
-        _call.__name__ = callable.__name__
         _call.__module__ = callable.__module__
         return _call
 
