@@ -10,6 +10,8 @@ from .stun import *
 class UDPClientFactory:
 
     def __init__(self, address, information, client_address = ('', 0), address_family = socket.AF_INET):
+        assert isinstance(address, tuple)
+        assert isinstance(client_address, tuple)
         self.address = address
         self.address_family = address_family
         self.information = information
@@ -62,7 +64,8 @@ class UDPBroadcastDiscoverer:
         self.last_packet_sent = time.time()
 
     def server_discovered(self, address, information, family):
-        self.servers.append(UDPClientFactory(address, family, information))
+        self.servers.append(UDPClientFactory(address, information,
+                                             address_family = family))
 
     def new_servers(self):
         servers = self.servers

@@ -26,9 +26,9 @@ class ConsoleConnectDialog:
             print('2... internet')
             print('b... to go back')
             selection = self.input()
-            if selection in '0Oo':
+            if selection and selection in '0Oo':
                 if self.ask_server(): return True
-            elif selection in '1Ll':
+            elif selection and selection in '1Ll':
                 if self.ask_LAN(): return True
             elif selection == 'b':
                 return False
