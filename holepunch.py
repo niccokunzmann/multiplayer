@@ -66,7 +66,10 @@ class HolePunchConnector:
         for address in self.punch_required:
             self.socket.sendto(b'', address)
         while select.select([self.socket], [], [], 0)[0]:
-            resp, addr = self.socket.recvfrom(BUFF)
+            try:
+                resp, addr = self.socket.recvfrom(BUFF)
+            except ConnectionResetError:
+                continue
             if resp:
                 if resp[:1] == COMMANDS['is_there_a_server']:
                     self.socket.sendto(COMMANDS['there_is_a_server'], addr)
