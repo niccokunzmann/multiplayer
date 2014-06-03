@@ -9,6 +9,7 @@ def console_connect_dialog(start_thread = True):
     if start_thread:
         import multiplayer.updater as updater
         model.set_updater(updater.ThreadingUpdater)
+    return model
 
 def set_endpoint(endpoint):
     global client, _endpoint, model
