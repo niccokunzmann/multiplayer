@@ -6,8 +6,9 @@ from .access_mapping import get_access_mapping
 from functools import wraps
 
 
-def p(distributor, obj, accessFactory, proxyClass):
-    id = transaction().id
+def p(distributor, obj, accessFactory, proxyClass, id = None):
+    if id is None:
+        id = transaction().id
     return distributor._get_proxy(obj, accessFactory, proxyClass, id)
 
 def call(function, args, kw):
@@ -17,6 +18,8 @@ class Model:
 
     ExecutorClass = Executor
     ProxyClass = staticmethod(FutureProxy)
+
+    MODEL_STATE_ID = 'MODEL_STATE'
 
     update_interval = 0.002
 
@@ -28,12 +31,21 @@ class Model:
         self._register(self, self.__class__)
         self._updater = ManualUpdater(client)
         self._everywhere_proxy = None
+        self._state = self.proxy(self._new_model_state(), id = self.MODEL_STATE_ID)
 
-    def proxy(self, obj, accessFactory = None):
+    @property
+    def state(self):
+        return self._state
+
+    def _new_model_state(self):
+        return {}
+
+    def proxy(self, obj, accessFactory = None, id = None):
         if accessFactory is None:
             accessFactory = self._find_access_factory_for(obj)
-        future_to_proxy = self._executor.future_call(self._proxy, (self, obj, accessFactory, self.ProxyClass))
-        id = future_to_proxy.id
+        future_to_proxy = self._executor.future_call(self._proxy, (self, obj, accessFactory, self.ProxyClass, id))
+        if id is None:
+            id = future_to_proxy.id
         return self._get_proxy(obj, accessFactory, self.ProxyClass, id)
 
     def _get_proxy(self, obj, accessFactory, proxyClass, id):
@@ -44,8 +56,8 @@ class Model:
     def _find_access_factory_for(self, obj):
         return get_access_mapping(type(obj))
 
-    def list(self, from_list = []):
-        return self.proxy(from_list[:])
+    def list(self, from_list = [], id = None):
+        return self.proxy(list(from_list), id = id)
 
     def everywhere(self, callable):
         assert hasattr(callable, '__call__')
