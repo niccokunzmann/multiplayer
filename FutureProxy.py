@@ -146,6 +146,7 @@ class FutureProxyMeta(type):
         return mcls.class_to_proxy_class[proxied_class]
 
     def add_method(cls, name):
+        # TODO: better mocking of the method
         proxied_method = getattr(cls.ProxiedClass, name) # TODO: what is not present
         if name not in cls.__dict__ and name not in noMagicMethods and name not in cls.base.__dict__:
             def method(self, *args, **kw):
