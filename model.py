@@ -7,9 +7,8 @@ from functools import wraps
 
 
 def p(distributor, obj, accessFactory, proxyClass, id = None):
-    if id is None:
-        id = transaction().id
-    return distributor._get_proxy(obj, accessFactory, proxyClass, id)
+    return distributor._get_proxy(obj, accessFactory, proxyClass, id,
+                                  transaction().id)
 
 def call(function, args, kw):
     return function(*args, **kw)
@@ -44,13 +43,14 @@ class Model:
         if accessFactory is None:
             accessFactory = self._find_access_factory_for(obj)
         future_to_proxy = self._executor.future_call(self._proxy, (self, obj, accessFactory, self.ProxyClass, id))
-        if id is None:
-            id = future_to_proxy.id
-        return self._get_proxy(obj, accessFactory, self.ProxyClass, id)
+        return self._get_proxy(obj, accessFactory, self.ProxyClass, id,
+                               future_to_proxy.id)
 
-    def _get_proxy(self, obj, accessFactory, proxyClass, id):
+    def _get_proxy(self, obj, accessFactory, proxyClass, id, dependency):
+        if id is None:
+            id = dependency
         read, const = accessFactory()
-        proxy = proxyClass(obj, self._executor, read, const, id)
+        proxy = proxyClass(obj, self._executor, read, const, dependency)
         return self._register_default(proxy, id)
 
     def _find_access_factory_for(self, obj):

@@ -5,11 +5,14 @@ from .stun import *
 from .server import *
 from .ConnectionFactory import url_to_address
 
+import threading
+
 BUFF = 4096
 
 class HolePunchConnector:
 
     servers_to_try = 5
+    unresolved_server_list = server_list
     retry_time = 0.1
 
     @classmethod
@@ -30,14 +33,32 @@ class HolePunchConnector:
         self.port = self.socket.getsockname()[1]
         self.punched_to = set()
         self.punch_required = set()
+        self.stun_server_list = []        
+        self.start_address_resolution_thread()
 
-    @property
-    def stun_server_list(self):
-        return server_list
+    def start_address_resolution_thread(self):
+        family = self.socket.family
+        type = self.socket.getsockopt(socket.SOL_SOCKET, socket.SO_TYPE)
+        self.name_resolver_thread = threading.Thread(target = self.resolve_addresses,
+            args = (self.unresolved_server_list, self.stun_server_list, family, type))
+        self.name_resolver_thread.deamon = True
+        self.name_resolver_thread.start()
+
+    @staticmethod
+    def resolve_addresses(from_list, to_list, family, type):
+        for host, port in from_list[:]:
+            try:
+                addresses = socket.getaddrinfo(host, port, family, type)
+            except socket.gaierror:
+                # socket.gaierror: [Errno 11004] getaddrinfo failed
+                continue
+            for address_info in addresses:
+                to_list.append(address_info[-1])
+
 
     @property
     def stun_server_addresses_to_try(self):
-        for i in range(self.servers_to_try):
+        for i in range(min((self.servers_to_try, len(self.stun_server_list)))):
             self._index %= len(self.stun_server_list)
             yield self.stun_server_list[self._index]
             self._index += 1
@@ -62,7 +83,12 @@ class HolePunchConnector:
 
     def schedule(self):
         for server_address in self.stun_server_addresses_to_try:
-            self.socket.sendto(GenReq(), server_address)
+            try:
+                self.socket.sendto(GenReq(), server_address)
+            except socket.gaierror:
+                # socket.gaierror: [Errno 11004] getaddrinfo failed
+                # we are not connected to the internet
+                pass 
         for address in self.punch_required:
             self.socket.sendto(b'', address)
         while select.select([self.socket], [], [], 0)[0]:
